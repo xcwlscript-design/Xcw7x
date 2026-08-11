@@ -1,0 +1,334 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local AutoTargetEnabled = false
+local HitboxEnabled = false
+local SpectateEnabled = false
+local TargetDistanceValue = 15
+local HitboxSizeValue = 15
+local SelectedPlayerName = nil
+local TrackingMode = "تحت اللاعب (Under)"
+local SpeedValue = 16
+local SafeModeEnabled = true
+
+-- [نظام الزر العائم] --
+local ToggleGui = Instance.new("ScreenGui")
+local ToggleBtn = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+
+ToggleGui.Name = "Xcw7x_ToggleScreen"
+ToggleGui.Parent = CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Parent = ToggleGui
+ToggleBtn.Size = UDim2.new(0, 60, 0, 60)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Text = "Xcw7x"
+ToggleBtn.TextColor3 = Color3.fromRGB(15, 15, 15)
+ToggleBtn.TextScaled = true
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Active = true
+
+UICorner.CornerRadius = UDim.new(0, 15)
+UICorner.Parent = ToggleBtn
+
+-- تقييد الحركة داخل حدود شاشة الجوال
+local dragging = false
+local dragStart, startPos
+
+ToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = ToggleBtn.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        local viewportSize = Camera.ViewportSize
+        local btnSize = ToggleBtn.AbsoluteSize
+
+        local newX = math.clamp(startPos.X.Offset + delta.X, 0, viewportSize.X - btnSize.X)
+        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, viewportSize.Y - btnSize.Y)
+
+        ToggleBtn.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
+end)
+
+local function GetPlayerNames()
+    local names = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(names, p.Name) end
+    end
+    return #names > 0 and names or {"لا يوجد لاعبين"}
+end
+
+-- تجميد تام وإلغاء التصادمات للشخصية
+local function ApplyStableGhost(char)
+    if char:FindFirstChild("Animate") then
+        char.Animate.Disabled = true
+    end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+    end
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Velocity = Vector3.new(0, 0, 0)
+            part.RotVelocity = Vector3.new(0, 0, 0)
+        end
+    end
+end
+
+-- التحكم بالمشاهدة
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if SpectateEnabled and SelectedPlayerName then
+            local targetPlayer = Players:FindFirstChild(SelectedPlayerName)
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                Camera.CameraSubject = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            end
+        else
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                end
+            end
+        end
+    end)
+end)
+
+-- التثبيت الثابت حسب الوضعية + الهيتش بوكس + السرعة
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        -- 1. نظام الهيتش بوكس للاعبين الآخرين
+        if HitboxEnabled then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local rootPart = p.Character:FindFirstChild("HumanoidRootPart")
+                    if rootPart then
+                        rootPart.Size = Vector3.new(HitboxSizeValue, HitboxSizeValue, HitboxSizeValue)
+                        rootPart.Transparency = 0.6
+                        rootPart.CanCollide = false
+                    end
+                end
+            end
+        end
+
+        -- 2. التتبع حسب الوضعية المختارة (بدون نطنطة)
+        local myChar = LocalPlayer.Character
+        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+            if AutoTargetEnabled and SelectedPlayerName then
+                ApplyStableGhost(myChar)
+                local targetPlayer = Players:FindFirstChild(SelectedPlayerName)
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetRoot = targetPlayer.Character.HumanoidRootPart
+                    local offsetCF = CFrame.new(0, -TargetDistanceValue, 0)
+
+                    if TrackingMode == "فوق اللاعب (On Top)" then
+                        offsetCF = CFrame.new(0, TargetDistanceValue, 0)
+                    elseif TrackingMode == "خلف اللاعب (Behind)" then
+                        offsetCF = CFrame.new(0, 0, TargetDistanceValue)
+                    elseif TrackingMode == "أمام اللاعب (In Front)" then
+                        offsetCF = CFrame.new(0, 0, -TargetDistanceValue)
+                    elseif TrackingMode == "تحت اللاعب (Under)" then
+                        offsetCF = CFrame.new(0, -TargetDistanceValue, 0)
+                    end
+
+                    myChar.HumanoidRootPart.CFrame = targetRoot.CFrame * offsetCF
+                    myChar.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+                    myChar.HumanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
+                end
+            end
+
+            -- 3. فرض السرعة باستمرار لمنع الماب من إعادتها
+            if SpeedValue > 16 then
+                local hum = myChar:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = SpeedValue
+                end
+            end
+        end
+    end)
+end)
+
+-- النافذة
+local Window = Fluent:CreateWindow({
+    Title = "Xcw7x | PRO",
+    SubTitle = "Complete Edition",
+    TabWidth = 130,
+    Size = UDim2.fromOffset(480, 360),
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
+
+local MainTab = Window:AddTab({ Title = "الرئيسية", Icon = "home" })
+local OtherTab = Window:AddTab({ Title = "أخرى", Icon = "settings" })
+
+-- محتويات الرئيسية
+local PlayerDropdown = MainTab:AddDropdown("Target", {
+    Title = "إختر اللاعب المستهدف للتتبع",
+    Values = GetPlayerNames(),
+    Callback = function(Value) SelectedPlayerName = Value end
+})
+
+MainTab:AddDropdown("TrackMode", {
+    Title = "وضعية التتبع بالنسبة للهدف",
+    Values = {
+        "تحت اللاعب (Under)",
+        "فوق اللاعب (On Top)",
+        "خلف اللاعب (Behind)",
+        "أمام اللاعب (In Front)"
+    },
+    Default = "تحت اللاعب (Under)",
+    Callback = function(Value)
+        TrackingMode = Value
+    end
+})
+
+MainTab:AddDropdown("Depth", {
+    Title = "المسافة / العمق (تعديل بالـ 5)",
+    Values = {
+        "قريب جداً (5)",
+        "سطحي (10)",
+        "متوسط (15)",
+        "عميق (20)",
+        "عميق جداً (25)",
+        "أسفل الماب (30)",
+        "مخفي تماماً (35)",
+        "قاع الماب (40)",
+        "أقصى عمق (45)",
+        "الحد الأقصى (50)"
+    },
+    Default = "متوسط (15)",
+    Callback = function(Value)
+        if Value == "قريب جداً (5)" then TargetDistanceValue = 5
+        elseif Value == "سطحي (10)" then TargetDistanceValue = 10
+        elseif Value == "متوسط (15)" then TargetDistanceValue = 15
+        elseif Value == "عميق (20)" then TargetDistanceValue = 20
+        elseif Value == "عميق جداً (25)" then TargetDistanceValue = 25
+        elseif Value == "أسفل الماب (30)" then TargetDistanceValue = 30
+        elseif Value == "مخفي تماماً (35)" then TargetDistanceValue = 35
+        elseif Value == "قاع الماب (40)" then TargetDistanceValue = 40
+        elseif Value == "أقصى عمق (45)" then TargetDistanceValue = 45
+        elseif Value == "الحد الأقصى (50)" then TargetDistanceValue = 50
+        end
+    end
+})
+
+MainTab:AddButton({
+    Title = "تحديث قائمة اللاعبين",
+    Callback = function()
+        local updated = GetPlayerNames()
+        PlayerDropdown:SetValues(updated)
+        PlayerDropdown:SetValue(updated[1] or "لا يوجد لاعبين")
+    end
+})
+
+MainTab:AddToggle("SpectateToggle", {
+    Title = "مشاهدة اللاعب (Spectate)",
+    Default = false,
+    Callback = function(Value)
+        SpectateEnabled = Value
+        if not Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        end
+    end
+})
+
+MainTab:AddToggle("AutoGhost", {
+    Title = "تفعيل التتبع بالوضعيات (ثابت بدون نطنطة)",
+    Callback = function(Value) 
+        AutoTargetEnabled = Value 
+        if not Value and LocalPlayer.Character then
+            if LocalPlayer.Character:FindFirstChild("Animate") then
+                LocalPlayer.Character.Animate.Disabled = false
+            end
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then 
+                hum.PlatformStand = false 
+                hum.AutoRotate = true
+            end
+        end
+    end
+})
+
+MainTab:AddToggle("HitboxToggle", {
+    Title = "تفعيل تكبير الهيتش بوكس (Hitbox)",
+    Default = false,
+    Callback = function(Value)
+        HitboxEnabled = Value
+    end
+})
+
+MainTab:AddDropdown("HitboxSize", {
+    Title = "حجم الهيتش بوكس",
+    Values = {"صغير (10)", "متوسط (15)", "كبير (25)", "ضخم جداً (40)"},
+    Default = "متوسط (15)",
+    Callback = function(Value)
+        if Value == "صغير (10)" then HitboxSizeValue = 10
+        elseif Value == "متوسط (15)" then HitboxSizeValue = 15
+        elseif Value == "كبير (25)" then HitboxSizeValue = 25
+        elseif Value == "ضخم جداً (40)" then HitboxSizeValue = 40
+        end
+    end
+})
+
+-- محتويات تبويب "أخرى" (السرعة)
+OtherTab:AddSlider("SpeedSlider", {
+    Title = "سرعة اللاعب (WalkSpeed)",
+    Description = "تحكم في سرعة الشخصية",
+    Default = 16, Min = 16, Max = 150, Rounding = 0,
+    Callback = function(Value)
+        SpeedValue = Value
+        local myChar = LocalPlayer.Character
+        if myChar then
+            local hum = myChar:FindFirstChildOfClass("Humanoid")
+            if hum then
+                if SafeModeEnabled then
+                    TweenService:Create(hum, TweenInfo.new(0.5), {WalkSpeed = Value}):Play()
+                else
+                    hum.WalkSpeed = Value
+                end
+            end
+        end
+    end
+})
+
+OtherTab:AddToggle("SafeMode", {
+    Title = "وضع الحماية (Safe Mode)",
+    Description = "تحديث السرعة بشكل تدريجي لتجنب الكشف",
+    Default = true,
+    Callback = function(Value) SafeModeEnabled = Value end
+})
+
+Fluent:SetTheme({
+    Accent = Color3.fromRGB(255, 255, 255),
+    Background = Color3.fromRGB(15, 12, 22),
+    Main = Color3.fromRGB(30, 20, 45)
+})
