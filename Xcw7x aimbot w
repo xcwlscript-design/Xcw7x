@@ -1,0 +1,564 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ==================== الإعدادات الافتراضية ====================
+local MAX_DISTANCE = 1500
+local FOV_RADIUS = 80
+local AIM_SMOOTHNESS = 0.55
+local AimbotEnabled = false
+local EspEnabled = true
+local SnaplinesEnabled = false
+local TEAM_CHECK = true
+local WALL_CHECK = true
+local NoclipEnabled = false
+local InfJumpEnabled = false
+
+-- ميزة اللصق القوي (Sticky Lock)
+local HardLockEnabled = false
+local IsHardLocked = false
+
+-- ميزة الهيتبوكس (Hitbox)
+local HitboxEnabled = false
+local HitboxSize = 12
+
+-- ألوان ESP والخطوط
+local TEAM_COLOR = Color3.fromRGB(0, 255, 100)
+local ENEMY_COLOR = Color3.fromRGB(255, 20, 20)
+local FOV_COLOR = Color3.fromRGB(255, 255, 255)
+
+-- جدول حفظ خطوط التتبع (Snaplines)
+local SnapLinesTable = {}
+
+-- رابط وسلسلة حفظ الصورة
+local IMAGE_URL = "https://cdn.discordapp.com/attachments/1162617429206241360/1537551834691145851/8e08010bd0d8858c8e7c56c5721a12eb_1.jpg?ex=6a7f743b&is=6a7e22bb&hm=6d139844d0b97617f81f469e5a04393559e747a573aad8674282af651167b48a&"
+local FILE_NAME = "my_script_logo.jpg"
+
+if not isfile(FILE_NAME) then
+    pcall(function()
+        writefile(FILE_NAME, game:HttpGet(IMAGE_URL))
+    end)
+end
+
+-- رسم دائرة الـ FOV
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1.2
+FOVCircle.NumSides = 60
+FOVCircle.Radius = FOV_RADIUS
+FOVCircle.Filled = false
+FOVCircle.Visible = false
+FOVCircle.Color = FOV_COLOR
+
+-- إنشاء واجهة التحكم (GUI)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AimbotMobileGui"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+-- ==================== الكبسة الخارجية الطافية (زر اللصق) ====================
+local LockFloatingBtn = Instance.new("TextButton")
+LockFloatingBtn.Name = "LockFloatingBtn"
+LockFloatingBtn.Parent = ScreenGui
+LockFloatingBtn.Size = UDim2.new(0, 46, 0, 46)
+LockFloatingBtn.Position = UDim2.new(0.8, 0, 0.4, 0)
+LockFloatingBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+LockFloatingBtn.Text = "LOCK"
+LockFloatingBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+LockFloatingBtn.Font = Enum.Font.SourceSansBold
+LockFloatingBtn.TextSize = 12
+LockFloatingBtn.Visible = false
+LockFloatingBtn.Active = true
+LockFloatingBtn.Draggable = true
+
+local LockCorner = Instance.new("UICorner")
+LockCorner.CornerRadius = UDim.new(1, 0)
+LockCorner.Parent = LockFloatingBtn
+
+LockFloatingBtn.MouseButton1Click:Connect(function()
+    IsHardLocked = not IsHardLocked
+    if IsHardLocked then
+        LockFloatingBtn.BackgroundColor3 = Color3.fromRGB(230, 35, 35)
+        LockFloatingBtn.Text = "LOCKED"
+    else
+        LockFloatingBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        LockFloatingBtn.Text = "LOCK"
+    end
+end)
+
+-- ==================== زر فتح القائمة الرئيسي ====================
+local OpenButton = Instance.new("ImageButton")
+OpenButton.Name = "OpenButton"
+OpenButton.Parent = ScreenGui
+OpenButton.Size = UDim2.new(0, 36, 0, 36)
+OpenButton.Position = UDim2.new(0, 12, 0.4, 0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+OpenButton.Image = getcustomasset(FILE_NAME)
+OpenButton.Visible = false
+OpenButton.Active = true
+OpenButton.Draggable = true
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 8)
+OpenCorner.Parent = OpenButton
+
+-- ==================== القائمة الرئيسية (Xcw7x) ====================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 195, 0, 235)
+MainFrame.Position = UDim2.new(0.5, -97, 0.25, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.Parent = MainFrame
+
+-- لوجو القائمة
+local Logo = Instance.new("ImageLabel")
+Logo.Name = "MenuLogo"
+Logo.Parent = MainFrame
+Logo.Size = UDim2.new(0, 22, 0, 22)
+Logo.Position = UDim2.new(0, 8, 0, 4)
+Logo.BackgroundTransparency = 1
+Logo.Image = getcustomasset(FILE_NAME)
+
+local LogoCorner = Instance.new("UICorner")
+LogoCorner.CornerRadius = UDim.new(0, 4)
+LogoCorner.Parent = Logo
+
+-- عنوان القائمة
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.Size = UDim2.new(0, 50, 0, 28)
+Title.Position = UDim2.new(0, 34, 0, 1)
+Title.BackgroundTransparency = 1
+Title.Text = "Xcw7x"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- زر اللوك الصغير (📌 Lock)
+local StickyToggleBtn = Instance.new("TextButton")
+StickyToggleBtn.Name = "StickyToggleBtn"
+StickyToggleBtn.Parent = MainFrame
+StickyToggleBtn.Size = UDim2.new(0, 40, 0, 18)
+StickyToggleBtn.Position = UDim2.new(0, 85, 0, 6)
+StickyToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+StickyToggleBtn.Text = "📌Lock"
+StickyToggleBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+StickyToggleBtn.Font = Enum.Font.SourceSansBold
+StickyToggleBtn.TextSize = 10
+
+local StickyCorner = Instance.new("UICorner")
+StickyCorner.CornerRadius = UDim.new(0, 4)
+StickyCorner.Parent = StickyToggleBtn
+
+-- زر الهيتبوكس الصغير (📦 HB)
+local HbMenuToggleBtn = Instance.new("TextButton")
+HbMenuToggleBtn.Name = "HbMenuToggleBtn"
+HbMenuToggleBtn.Parent = MainFrame
+HbMenuToggleBtn.Size = UDim2.new(0, 38, 0, 18)
+HbMenuToggleBtn.Position = UDim2.new(0, 128, 0, 6)
+HbMenuToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+HbMenuToggleBtn.Text = "📦 HB"
+HbMenuToggleBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+HbMenuToggleBtn.Font = Enum.Font.SourceSansBold
+HbMenuToggleBtn.TextSize = 10
+
+local HbMenuCorner = Instance.new("UICorner")
+HbMenuCorner.CornerRadius = UDim.new(0, 4)
+HbMenuCorner.Parent = HbMenuToggleBtn
+
+-- زر الإغلاق (X)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = MainFrame
+CloseButton.Size = UDim2.new(0, 22, 0, 22)
+CloseButton.Position = UDim2.new(1, -26, 0, 4)
+CloseButton.BackgroundColor3 = Color3.fromRGB(230, 45, 45)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 14
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(1, 0)
+CloseCorner.Parent = CloseButton
+
+-- ==================== قائمة الـ Hitbox الفرعية ====================
+local HitboxFrame = Instance.new("Frame")
+HitboxFrame.Name = "HitboxFrame"
+HitboxFrame.Parent = ScreenGui
+HitboxFrame.Size = UDim2.new(0, 160, 0, 95)
+HitboxFrame.Position = UDim2.new(0.5, 102, 0.25, 0)
+HitboxFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+HitboxFrame.BorderSizePixel = 0
+HitboxFrame.Visible = false
+HitboxFrame.Active = true
+HitboxFrame.Draggable = true
+
+local HbFrameCorner = Instance.new("UICorner")
+HbFrameCorner.CornerRadius = UDim.new(0, 8)
+HbFrameCorner.Parent = HitboxFrame
+
+local HbTitle = Instance.new("TextLabel")
+HbTitle.Parent = HitboxFrame
+HbTitle.Size = UDim2.new(1, 0, 0, 22)
+HbTitle.Position = UDim2.new(0, 0, 0, 2)
+HbTitle.BackgroundTransparency = 1
+HbTitle.Text = "Hitbox Settings"
+HbTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+HbTitle.TextSize = 12
+HbTitle.Font = Enum.Font.SourceSansBold
+
+local HbToggleBtn = Instance.new("TextButton")
+HbToggleBtn.Parent = HitboxFrame
+HbToggleBtn.Size = UDim2.new(0.9, 0, 0, 22)
+HbToggleBtn.Position = UDim2.new(0.05, 0, 0, 26)
+HbToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+HbToggleBtn.Text = "Hitbox: OFF"
+HbToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HbToggleBtn.Font = Enum.Font.SourceSansBold
+HbToggleBtn.TextSize = 12
+
+local HbBtnCorner = Instance.new("UICorner")
+HbBtnCorner.CornerRadius = UDim.new(0, 5)
+HbBtnCorner.Parent = HbToggleBtn
+
+HbToggleBtn.MouseButton1Click:Connect(function()
+    HitboxEnabled = not HitboxEnabled
+    HbToggleBtn.Text = "Hitbox: " .. (HitboxEnabled and "ON" or "OFF")
+    HbToggleBtn.BackgroundColor3 = HitboxEnabled and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+end)
+
+local HbLabel = Instance.new("TextLabel")
+HbLabel.Parent = HitboxFrame
+HbLabel.Size = UDim2.new(1, 0, 0, 15)
+HbLabel.Position = UDim2.new(0, 0, 0, 50)
+HbLabel.BackgroundTransparency = 1
+HbLabel.Text = "Size: " .. tostring(HitboxSize)
+HbLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+HbLabel.Font = Enum.Font.SourceSansBold
+HbLabel.TextSize = 11
+
+local HbSliderFrame = Instance.new("Frame")
+HbSliderFrame.Parent = HitboxFrame
+HbSliderFrame.Size = UDim2.new(0.85, 0, 0, 6)
+HbSliderFrame.Position = UDim2.new(0.075, 0, 0, 70)
+HbSliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+HbSliderFrame.BorderSizePixel = 0
+
+local HbSliderCorner = Instance.new("UICorner")
+HbSliderCorner.CornerRadius = UDim.new(1, 0)
+HbSliderCorner.Parent = HbSliderFrame
+
+local HbSliderBtn = Instance.new("TextButton")
+HbSliderBtn.Parent = HbSliderFrame
+HbSliderBtn.Size = UDim2.new(0, 12, 0, 12)
+HbSliderBtn.Position = UDim2.new((HitboxSize - 2) / (40 - 2), -6, 0.5, -6)
+HbSliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+HbSliderBtn.Text = ""
+
+local HbBtnCorner2 = Instance.new("UICorner")
+HbBtnCorner2.CornerRadius = UDim.new(1, 0)
+HbBtnCorner2.Parent = HbSliderBtn
+
+local hbDragging = false
+local function updateHbSlider(input)
+    local posX = math.clamp(input.Position.X - HbSliderFrame.AbsolutePosition.X, 0, HbSliderFrame.AbsoluteSize.X)
+    local percentage = posX / HbSliderFrame.AbsoluteSize.X
+    local minSize = 2
+    local maxSize = 40
+    HitboxSize = math.floor(minSize + (maxSize - minSize) * percentage)
+    
+    HbSliderBtn.Position = UDim2.new(percentage, -6, 0.5, -6)
+    HbLabel.Text = "Size: " .. tostring(HitboxSize)
+end
+
+HbSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        hbDragging = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        hbDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if hbDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateHbSlider(input)
+    end
+end)
+
+StickyToggleBtn.MouseButton1Click:Connect(function()
+    HardLockEnabled = not HardLockEnabled
+    LockFloatingBtn.Visible = HardLockEnabled
+    if HardLockEnabled then
+        StickyToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        StickyToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        StickyToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        StickyToggleBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+        IsHardLocked = false
+        LockFloatingBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        LockFloatingBtn.Text = "LOCK"
+    end
+end)
+
+HbMenuToggleBtn.MouseButton1Click:Connect(function()
+    HitboxFrame.Visible = not HitboxFrame.Visible
+    if HitboxFrame.Visible then
+        HbMenuToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        HbMenuToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        HbMenuToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        HbMenuToggleBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+    end
+end)
+
+local function createToggle(name, text, defaultState, posY, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Parent = MainFrame
+    btn.Size = UDim2.new(0.9, 0, 0, 23)
+    btn.Position = UDim2.new(0.05, 0, 0, posY)
+    btn.BackgroundColor3 = defaultState and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+    btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = btn
+
+    local state = defaultState
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+        callback(state)
+    end)
+    return btn
+end
+
+-- ==================== أزرار القائمة ====================
+createToggle("AimToggle", "Aimbot Lock", AimbotEnabled, 30, function(val)
+    AimbotEnabled = val
+end)
+
+local FovLabel = Instance.new("TextLabel")
+FovLabel.Parent = MainFrame
+FovLabel.Size = UDim2.new(1, 0, 0, 16)
+FovLabel.Position = UDim2.new(0, 0, 0, 56)
+FovLabel.BackgroundTransparency = 1
+FovLabel.Text = "FOV: " .. tostring(FOV_RADIUS)
+FovLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FovLabel.Font = Enum.Font.SourceSansBold
+FovLabel.TextSize = 13
+
+local SliderFrame = Instance.new("Frame")
+SliderFrame.Parent = MainFrame
+SliderFrame.Size = UDim2.new(0.85, 0, 0, 6)
+SliderFrame.Position = UDim2.new(0.075, 0, 0, 74)
+SliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SliderFrame.BorderSizePixel = 0
+
+local SliderCorner = Instance.new("UICorner")
+SliderCorner.CornerRadius = UDim.new(1, 0)
+SliderCorner.Parent = SliderFrame
+
+local SliderBtn = Instance.new("TextButton")
+SliderBtn.Parent = SliderFrame
+SliderBtn.Size = UDim2.new(0, 12, 0, 12)
+SliderBtn.Position = UDim2.new((FOV_RADIUS - 20) / (350 - 20), -6, 0.5, -6)
+SliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SliderBtn.Text = ""
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(1, 0)
+BtnCorner.Parent = SliderBtn
+
+local dragging = false
+local function updateSlider(input)
+    local posX = math.clamp(input.Position.X - SliderFrame.AbsolutePosition.X, 0, SliderFrame.AbsoluteSize.X)
+    local percentage = posX / SliderFrame.AbsoluteSize.X
+    local minFov = 20
+    local maxFov = 350
+    FOV_RADIUS = math.floor(minFov + (maxFov - minFov) * percentage)
+    
+    SliderBtn.Position = UDim2.new(percentage, -6, 0.5, -6)
+    FovLabel.Text = "FOV: " .. tostring(FOV_RADIUS)
+    FOVCircle.Radius = FOV_RADIUS
+end
+
+SliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateSlider(input)
+    end
+end)
+
+createToggle("TeamToggle", "Team Check", TEAM_CHECK, 85, function(val)
+    TEAM_CHECK = val
+end)
+
+createToggle("WallToggle", "Wall Check", WALL_CHECK, 112, function(val)
+    WALL_CHECK = val
+end)
+
+-- ==================== الصف المدمج (ESP + Tracers) ====================
+local EspBtn = Instance.new("TextButton")
+EspBtn.Name = "EspBtn"
+EspBtn.Parent = MainFrame
+EspBtn.Size = UDim2.new(0.42, 0, 0, 23)
+EspBtn.Position = UDim2.new(0.05, 0, 0, 139)
+EspBtn.BackgroundColor3 = EspEnabled and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+EspBtn.Text = "ESP: " .. (EspEnabled and "ON" or "OFF")
+EspBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+EspBtn.Font = Enum.Font.SourceSansBold
+EspBtn.TextSize = 12
+
+local EspCorner = Instance.new("UICorner")
+EspCorner.CornerRadius = UDim.new(0, 5)
+EspCorner.Parent = EspBtn
+
+EspBtn.MouseButton1Click:Connect(function()
+    EspEnabled = not EspEnabled
+    EspBtn.Text = "ESP: " .. (EspEnabled and "ON" or "OFF")
+    EspBtn.BackgroundColor3 = EspEnabled and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+    if not EspEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                if player.Character:FindFirstChild("ESPHighlight") then
+                    player.Character.ESPHighlight:Destroy()
+                end
+                if player.Character:FindFirstChild("ESPBillboard") then
+                    player.Character.ESPBillboard:Destroy()
+                end
+            end
+        end
+    end
+end)
+
+local TracersBtn = Instance.new("TextButton")
+TracersBtn.Name = "TracersBtn"
+TracersBtn.Parent = MainFrame
+TracersBtn.Size = UDim2.new(0.45, 0, 0, 23)
+TracersBtn.Position = UDim2.new(0.50, 0, 0, 139)
+TracersBtn.BackgroundColor3 = SnaplinesEnabled and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+TracersBtn.Text = "Lines: OFF"
+TracersBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TracersBtn.Font = Enum.Font.SourceSansBold
+TracersBtn.TextSize = 12
+
+local TracersCorner = Instance.new("UICorner")
+TracersCorner.CornerRadius = UDim.new(0, 5)
+TracersCorner.Parent = TracersBtn
+
+TracersBtn.MouseButton1Click:Connect(function()
+    SnaplinesEnabled = not SnaplinesEnabled
+    TracersBtn.Text = "Lines: " .. (SnaplinesEnabled and "ON" or "OFF")
+    TracersBtn.BackgroundColor3 = SnaplinesEnabled and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(30, 30, 30)
+    
+    if not SnaplinesEnabled then
+        for _, line in pairs(SnapLinesTable) do
+            line.Visible = false
+        end
+    end
+end)
+
+createToggle("NoclipToggle", "NoClip", NoclipEnabled, 166, function(val)
+    NoclipEnabled = val
+end)
+
+createToggle("InfJumpToggle", "Inf Jump", InfJumpEnabled, 193, function(val)
+    InfJumpEnabled = val
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    HitboxFrame.Visible = false
+    OpenButton.Visible = true
+end)
+
+OpenButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenButton.Visible = false
+end)
+
+-- ==================== آليات الميزات الإضافية ====================
+
+-- NoClip
+RunService.Stepped:Connect(function()
+    if NoclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Inf Jump
+UserInputService.JumpRequest:Connect(function()
+    if InfJumpEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
+
+-- Hitbox Extender
+local function applyHitbox()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local isEnemy = true
+            if TEAM_CHECK and LocalPlayer.Team and player.Team and player.Team == LocalPlayer.Team then
+                isEnemy = false
+            end
+
+            if HitboxEnabled and isEnemy and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                hrp.Transparency = 0.7
+                hrp.BrickColor = BrickColor.new("Really red")
+                hrp.Material = Enum.Material.SmoothPlastic
+                hrp.CanCollide = false
+            else
+                if hrp.Size ~= Vector3.new(2, 2, 1) then
+                    hrp.Size = Vector3.new(2, 2, 1)
+                    hrp.Transparency = 1
+                    hrp.CanCollide = false
+                end
+            end
+        end
+    end
+end
+
+-- ==================== آليات الـ ESP وتفاصيل الدم و Lines ====================
+
+local function updateESP()
+    local screenBottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local humanoid =
