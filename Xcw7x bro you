@@ -1,0 +1,169 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local isActive = false
+local currentTarget = nil
+local DISTANCE_BEHIND = 6 
+
+-- إعدادات الأنيميشن
+local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- إنشاء واجهة المستخدم
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "LockGui_Xcw7x"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 65, 0, 65)
+button.Position = UDim2.new(0.85, 0, 0.4, 0)
+button.BackgroundColor3 = Color3.fromRGB(15, 15, 15) -- خلفية داكنة لإبراز RGB
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Text = "LOCK"
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 16
+button.Active = true
+button.Draggable = true 
+button.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = button
+
+-- إطار RGB يحيط بجوانب الزر بالكامل
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Thickness = 4
+uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- لضمان تغطية الجوانب
+uiStroke.Parent = button
+
+-- تأثير RGB المتحرك (للجوانب والنص)
+local hue = 0
+RunService.RenderStepped:Connect(function()
+    hue = (hue + 0.005) % 1
+    local rgbColor = Color3.fromHSV(hue, 1, 1)
+    uiStroke.Color = rgbColor
+    button.TextColor3 = rgbColor
+end)
+
+-- أنيميشن الضغط
+local function playClickAnimation()
+    TweenService:Create(button, tweenInfo, {Size = UDim2.new(0, 55, 0, 55)}):Play()
+    task.wait(0.1)
+    TweenService:Create(button, tweenInfo, {Size = UDim2.new(0, 65, 0, 65)}):Play()
+end
+
+-- تنظيف العناصر
+local function clearVisuals()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            if p.Character:FindFirstChild("TargetHighlight") then p.Character.TargetHighlight:Destroy() end
+            if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("HealthBarGui") then p.Character.Head.HealthBarGui:Destroy() end
+        end
+    end
+end
+
+-- إنشاء عامود الهيل والاسم
+local function setTargetVisuals(target)
+    clearVisuals()
+    if not target or not target.Character or not target.Character:FindFirstChild("Head") then return end
+    
+    local h = Instance.new("Highlight")
+    h.Name = "TargetHighlight"
+    h.FillColor = Color3.fromRGB(0, 255, 0)
+    h.OutlineColor = Color3.fromRGB(255, 255, 255)
+    h.FillTransparency = 0.5
+    h.Parent = target.Character
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "HealthBarGui"
+    billboard.Adornee = target.Character.Head
+    billboard.Size = UDim2.new(0, 70, 0, 20)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = target.Character.Head
+
+    local bg = Instance.new("Frame", billboard)
+    bg.Size = UDim2.new(1, 0, 0.4, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+    local fg = Instance.new("Frame", bg)
+    fg.Name = "HealthFG"
+    fg.Size = UDim2.new(1, 0, 1, 0)
+    fg.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+
+    local label = Instance.new("TextLabel", billboard)
+    label.Size = UDim2.new(1, 0, 0.6, 0)
+    label.Position = UDim2.new(0, 0, 0.4, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "by Xcw7x"
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+end
+
+-- البحث عن الهدف
+local function getTargetInView()
+    local closest = nil
+    local shortestAngle = math.rad(25)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = player.Character.HumanoidRootPart
+            local directionToTarget = (targetHRP.Position - Camera.CFrame.Position).Unit
+            local angle = math.acos(Camera.CFrame.LookVector:Dot(directionToTarget))
+            if angle < shortestAngle then
+                local dist = (targetHRP.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if dist <= 200 then
+                    shortestAngle = angle
+                    closest = player
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- الحلقة الرئيسية
+RunService.RenderStepped:Connect(function()
+    if not isActive then
+        local found = getTargetInView()
+        if found ~= currentTarget then
+            currentTarget = found
+            setTargetVisuals(currentTarget)
+        end
+    else
+        if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = currentTarget.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, DISTANCE_BEHIND)
+        else
+            isActive = false
+            button.Text = "LOCK"
+            clearVisuals()
+        end
+    end
+
+    if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("Humanoid") then
+        local head = currentTarget.Character:FindFirstChild("Head")
+        if head and head:FindFirstChild("HealthBarGui") then
+            local hum = currentTarget.Character.Humanoid
+            local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+            head.HealthBarGui.Frame.HealthFG.Size = UDim2.new(healthPercent, 0, 1, 0)
+        end
+    end
+end)
+
+-- التفعيل
+button.MouseButton1Click:Connect(function()
+    playClickAnimation()
+    if not isActive then
+        if currentTarget then
+            isActive = true
+            button.Text = "STOP"
+        end
+    else
+        isActive = false
+        button.Text = "LOCK"
+    end
+end)
