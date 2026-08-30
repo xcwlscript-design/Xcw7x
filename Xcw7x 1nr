@@ -1,334 +1,593 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
+local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
-local AutoTargetEnabled = false
-local HitboxEnabled = false
-local SpectateEnabled = false
-local TargetDistanceValue = 15
-local HitboxSizeValue = 15
-local SelectedPlayerName = nil
-local TrackingMode = "تحت اللاعب (Under)"
-local SpeedValue = 16
-local SafeModeEnabled = true
+-- ==================== الأغنية المعتمدة فقط ====================
+local SINGLE_SONG_ID = "17422074849"
 
--- [نظام الزر العائم] --
-local ToggleGui = Instance.new("ScreenGui")
-local ToggleBtn = Instance.new("TextButton")
-local UICorner = Instance.new("UICorner")
+-- جلب صورة واسم اللاعب
+local playerAvatarUrl = ""
+pcall(function()
+    playerAvatarUrl = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+end)
 
-ToggleGui.Name = "Xcw7x_ToggleScreen"
-ToggleGui.Parent = CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+-- صورة اللوجو (X)
+local IMAGE_URL = "https://cdn.discordapp.com/attachments/1162617429206241360/1537551834691145851/8e08010bd0d8858c8e7c56c5721a12eb_1.jpg"
+local FILE_NAME = "my_script_logo.jpg"
 
-ToggleBtn.Name = "ToggleBtn"
-ToggleBtn.Parent = ToggleGui
-ToggleBtn.Size = UDim2.new(0, 60, 0, 60)
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.Text = "Xcw7x"
-ToggleBtn.TextColor3 = Color3.fromRGB(15, 15, 15)
-ToggleBtn.TextScaled = true
-ToggleBtn.Font = Enum.Font.SourceSansBold
-ToggleBtn.Active = true
+if not isfile(FILE_NAME) then
+    pcall(function()
+        writefile(FILE_NAME, game:HttpGet(IMAGE_URL))
+    end)
+end
 
-UICorner.CornerRadius = UDim.new(0, 15)
-UICorner.Parent = ToggleBtn
+-- مشغل الصوت الرئيسي
+local Music = SoundService:FindFirstChild("Xcw7xMusicPlayer")
+if not Music then
+    Music = Instance.new("Sound")
+    Music.Name = "Xcw7xMusicPlayer"
+    Music.Volume = 1.5
+    Music.Looped = true
+    Music.Parent = SoundService
+end
 
--- تقييد الحركة داخل حدود شاشة الجوال
-local dragging = false
-local dragStart, startPos
+-- متغير القوة المضاعفة (Default 100% = 1.0)
+local powerMultiplier = 1.0
 
-ToggleBtn.InputBegan:Connect(function(input)
+-- ==================== إنشاء الواجهة (GUI) ====================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Xcw7xMusicGui"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+
+-- ==================== شاشة الدخول السوداء (Intro) ====================
+local IntroFrame = Instance.new("Frame")
+IntroFrame.Name = "IntroFrame"
+IntroFrame.Parent = ScreenGui
+IntroFrame.Size = UDim2.new(1, 0, 1, 0)
+IntroFrame.Position = UDim2.new(0, 0, 0, 0)
+IntroFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+IntroFrame.ZIndex = 100
+
+local IntroContent = Instance.new("Frame")
+IntroContent.Parent = IntroFrame
+IntroContent.Size = UDim2.new(0, 300, 0, 180)
+IntroContent.Position = UDim2.new(0.5, -150, 0.5, -90)
+IntroContent.BackgroundTransparency = 1
+IntroContent.ZIndex = 101
+
+-- صورة حساب اللاعب
+local IntroAvatar = Instance.new("ImageLabel")
+IntroAvatar.Parent = IntroContent
+IntroAvatar.Size = UDim2.new(0, 90, 0, 90)
+IntroAvatar.Position = UDim2.new(0.5, -45, 0, 0)
+IntroAvatar.BackgroundTransparency = 1
+IntroAvatar.Image = playerAvatarUrl
+IntroAvatar.ZIndex = 102
+
+local IntroAvatarCorner = Instance.new("UICorner")
+IntroAvatarCorner.CornerRadius = UDim.new(1, 0)
+IntroAvatarCorner.Parent = IntroAvatar
+
+local IntroAvatarStroke = Instance.new("UIStroke")
+IntroAvatarStroke.Parent = IntroAvatar
+IntroAvatarStroke.Thickness = 3
+IntroAvatarStroke.Color = Color3.fromRGB(255, 0, 0)
+
+-- نص Welcome (اسم اللاعب)
+local IntroText = Instance.new("TextLabel")
+IntroText.Parent = IntroContent
+IntroText.Size = UDim2.new(1, 0, 0, 40)
+IntroText.Position = UDim2.new(0, 0, 0, 105)
+IntroText.BackgroundTransparency = 1
+IntroText.Text = "Welcome " .. (LocalPlayer.DisplayName or LocalPlayer.Name)
+IntroText.TextColor3 = Color3.fromRGB(255, 255, 255)
+IntroText.Font = Enum.Font.SourceSansBold
+IntroText.TextSize = 24
+IntroText.ZIndex = 102
+
+-- حركة اختفاء شاشة الدخول تلقائياً
+task.spawn(function()
+    task.wait(3)
+    local fadeTime = 1
+    local tweenInfo = TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    TweenService:Create(IntroFrame, tweenInfo, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(IntroAvatar, tweenInfo, {ImageTransparency = 1}):Play()
+    TweenService:Create(IntroAvatarStroke, tweenInfo, {Transparency = 1}):Play()
+    TweenService:Create(IntroText, tweenInfo, {TextTransparency = 1}):Play()
+    
+    task.wait(fadeTime)
+    IntroFrame:Destroy()
+end)
+
+-- ==================== حواف الشاشة التفاعلية ====================
+local BorderFolder = Instance.new("Folder")
+BorderFolder.Name = "ScreenBorders"
+BorderFolder.Parent = ScreenGui
+
+local function createBorderFrame(name)
+    local f = Instance.new("Frame")
+    f.Name = name
+    f.Parent = BorderFolder
+    f.BackgroundColor3 = Color3.fromRGB(180, 20, 30)
+    f.BorderSizePixel = 0
+    f.ZIndex = 50
+    return f
+end
+
+local TopBorder = createBorderFrame("TopBorder")
+local BottomBorder = createBorderFrame("BottomBorder")
+local LeftBorder = createBorderFrame("LeftBorder")
+local RightBorder = createBorderFrame("RightBorder")
+
+-- ==================== تساقط الكرات الحمراء ====================
+local CirclesFolder = Instance.new("Folder")
+CirclesFolder.Name = "FallingCirclesFolder"
+CirclesFolder.Parent = ScreenGui
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+        
+        local circleSize = math.random(12, 24)
+        local startX = math.random()
+        local endXDrift = startX + (math.random(-8, 8) / 100)
+        
+        local circle = Instance.new("Frame")
+        circle.Name = "RedCircle"
+        circle.Parent = CirclesFolder
+        circle.Size = UDim2.new(0, circleSize, 0, circleSize)
+        circle.Position = UDim2.new(startX, 0, -0.05, 0)
+        circle.BackgroundColor3 = Color3.fromRGB(220, 25, 35)
+        circle.BorderSizePixel = 0
+        circle.ZIndex = 10
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = circle
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1
+        stroke.Color = Color3.fromRGB(255, 80, 80)
+        stroke.Transparency = 0.4
+        stroke.Parent = circle
+
+        local fallDuration = math.random(45, 65) / 10
+        local fallTween = TweenService:Create(circle, TweenInfo.new(fallDuration, Enum.EasingStyle.Linear), {
+            Position = UDim2.new(endXDrift, 0, 1.05, 0),
+            BackgroundTransparency = 0.7
+        })
+        
+        fallTween:Play()
+        fallTween.Completed:Connect(function() circle:Destroy() end)
+    end
+end)
+
+-- ==================== النص الظاهر على الشاشة ====================
+local CurvedTextContainer = Instance.new("Frame")
+CurvedTextContainer.Name = "CurvedTextContainer"
+CurvedTextContainer.Parent = ScreenGui
+CurvedTextContainer.Size = UDim2.new(0, 400, 0, 100)
+CurvedTextContainer.Position = UDim2.new(0.5, -200, 0.12, 0)
+CurvedTextContainer.BackgroundTransparency = 1
+
+local DISPLAY_TEXT = "🔥 Xcw7x ON TOP 🔥"
+local CharacterLabels = {}
+local textLength = #DISPLAY_TEXT
+
+for i = 1, textLength do
+    local char = string.sub(DISPLAY_TEXT, i, i)
+    local label = Instance.new("TextLabel")
+    label.Name = "Char_" .. tostring(i)
+    label.Parent = CurvedTextContainer
+    label.Size = UDim2.new(0, 24, 0, 30)
+    label.BackgroundTransparency = 1
+    label.Text = char
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 24
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextTransparency = 1
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Parent = label
+    stroke.Thickness = 1.5
+    stroke.Color = Color3.fromRGB(0, 0, 0)
+    stroke.Transparency = 1
+
+    table.insert(CharacterLabels, {Label = label, Stroke = stroke})
+end
+
+-- ==================== زر فتح القائمة ====================
+local OpenButton = Instance.new("ImageButton")
+OpenButton.Name = "OpenButton"
+OpenButton.Parent = ScreenGui
+OpenButton.Size = UDim2.new(0, 40, 0, 40)
+OpenButton.Position = UDim2.new(0, 15, 0.4, 0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+OpenButton.Image = getcustomasset(FILE_NAME)
+OpenButton.Visible = false
+OpenButton.Active = true
+OpenButton.Draggable = true
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 10)
+OpenCorner.Parent = OpenButton
+
+local OpenStroke = Instance.new("UIStroke")
+OpenStroke.Parent = OpenButton
+OpenStroke.Thickness = 2
+OpenStroke.Color = Color3.fromRGB(255, 0, 0)
+
+-- ==================== القائمة الرئيسية ====================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 210, 0, 260) -- تم زيادة الارتفاع ليتسع لمربع المتصلين
+MainFrame.Position = UDim2.new(0.5, -105, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Parent = MainFrame
+MainStroke.Thickness = 2
+MainStroke.Color = Color3.fromRGB(255, 0, 0)
+
+-- لوجو X
+local Logo = Instance.new("ImageLabel")
+Logo.Parent = MainFrame
+Logo.Size = UDim2.new(0, 24, 0, 24)
+Logo.Position = UDim2.new(0, 8, 0, 6)
+Logo.BackgroundTransparency = 1
+Logo.Image = getcustomasset(FILE_NAME)
+
+local LogoCorner = Instance.new("UICorner")
+LogoCorner.CornerRadius = UDim.new(0, 5)
+LogoCorner.Parent = Logo
+
+-- اسم اللاعب في القائمة
+local PlayerNameLabel = Instance.new("TextLabel")
+PlayerNameLabel.Name = "PlayerNameLabel"
+PlayerNameLabel.Parent = MainFrame
+PlayerNameLabel.Size = UDim2.new(0, 90, 0, 28)
+PlayerNameLabel.Position = UDim2.new(0, 36, 0, 4)
+PlayerNameLabel.BackgroundTransparency = 1
+PlayerNameLabel.Text = LocalPlayer.DisplayName or LocalPlayer.Name
+PlayerNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerNameLabel.TextSize = 12
+PlayerNameLabel.Font = Enum.Font.SourceSansBold
+PlayerNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- علامة التوثيق الزرقاء ☑
+local VerifyBadge = Instance.new("ImageLabel")
+VerifyBadge.Name = "VerifyBadge"
+VerifyBadge.Parent = MainFrame
+VerifyBadge.Size = UDim2.new(0, 14, 0, 14)
+VerifyBadge.Position = UDim2.new(0, 126, 0, 13)
+VerifyBadge.BackgroundTransparency = 1
+VerifyBadge.Image = "rbxassetid://6031068433"
+
+-- زر الإغلاق (X)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = MainFrame
+CloseButton.Size = UDim2.new(0, 22, 0, 22)
+CloseButton.Position = UDim2.new(1, -28, 0, 6)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 13
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(1, 0)
+CloseCorner.Parent = CloseButton
+
+-- عناصر الواجهة
+local SongInput = Instance.new("TextBox")
+SongInput.Name = "SongInput"
+SongInput.Parent = MainFrame
+SongInput.Size = UDim2.new(0.9, 0, 0, 24)
+SongInput.Position = UDim2.new(0.05, 0, 0, 36)
+SongInput.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SongInput.PlaceholderText = "اكتب كود الأغنية..."
+SongInput.PlaceholderColor3 = Color3.fromRGB(130, 130, 130)
+SongInput.Text = SINGLE_SONG_ID
+SongInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SongInput.Font = Enum.Font.SourceSansBold
+SongInput.TextSize = 11
+SongInput.ClearTextOnFocus = false
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = SongInput
+
+-- الأزرار
+local PlayCustomBtn = Instance.new("TextButton")
+PlayCustomBtn.Parent = MainFrame
+PlayCustomBtn.Size = UDim2.new(0.9, 0, 0, 22)
+PlayCustomBtn.Position = UDim2.new(0.05, 0, 0, 65)
+PlayCustomBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+PlayCustomBtn.Text = "▶ تشغيل الكود"
+PlayCustomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayCustomBtn.Font = Enum.Font.SourceSansBold
+PlayCustomBtn.TextSize = 11
+
+local PlayCorner = Instance.new("UICorner")
+PlayCorner.CornerRadius = UDim.new(0, 5)
+PlayCorner.Parent = PlayCustomBtn
+
+local PlayRandomBtn = Instance.new("TextButton")
+PlayRandomBtn.Name = "PlayRandomBtn"
+PlayRandomBtn.Parent = MainFrame
+PlayRandomBtn.Size = UDim2.new(0.9, 0, 0, 22)
+PlayRandomBtn.Position = UDim2.new(0.05, 0, 0, 90)
+PlayRandomBtn.BackgroundColor3 = Color3.fromRGB(140, 25, 25)
+PlayRandomBtn.Text = "🎵 الأغنية المعتمدة"
+PlayRandomBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayRandomBtn.Font = Enum.Font.SourceSansBold
+PlayRandomBtn.TextSize = 11
+
+local RandomCorner = Instance.new("UICorner")
+RandomCorner.CornerRadius = UDim.new(0, 5)
+RandomCorner.Parent = PlayRandomBtn
+
+local StopBtn = Instance.new("TextButton")
+StopBtn.Parent = MainFrame
+StopBtn.Size = UDim2.new(0.9, 0, 0, 22)
+StopBtn.Position = UDim2.new(0.05, 0, 0, 115)
+StopBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+StopBtn.Text = "⬛ إيقاف الأغنية"
+StopBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+StopBtn.Font = Enum.Font.SourceSansBold
+StopBtn.TextSize = 11
+
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 5)
+StopCorner.Parent = StopBtn
+
+-- ==================== شريط القوة (Power Slider) ====================
+local SliderLabel = Instance.new("TextLabel")
+SliderLabel.Parent = MainFrame
+SliderLabel.Size = UDim2.new(0.9, 0, 0, 14)
+SliderLabel.Position = UDim2.new(0.05, 0, 0, 142)
+SliderLabel.BackgroundTransparency = 1
+SliderLabel.Text = "⚡ القوة: 100%"
+SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SliderLabel.Font = Enum.Font.SourceSansBold
+SliderLabel.TextSize = 11
+
+local SliderBg = Instance.new("Frame")
+SliderBg.Name = "SliderBg"
+SliderBg.Parent = MainFrame
+SliderBg.Size = UDim2.new(0.9, 0, 0, 10)
+SliderBg.Position = UDim2.new(0.05, 0, 0, 158)
+SliderBg.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+
+local SliderBgCorner = Instance.new("UICorner")
+SliderBgCorner.CornerRadius = UDim.new(1, 0)
+SliderBgCorner.Parent = SliderBg
+
+local SliderFill = Instance.new("Frame")
+SliderFill.Name = "SliderFill"
+SliderFill.Parent = SliderBg
+SliderFill.Size = UDim2.new(1, 0, 1, 0)
+SliderFill.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+
+local SliderFillCorner = Instance.new("UICorner")
+SliderFillCorner.CornerRadius = UDim.new(1, 0)
+SliderFillCorner.Parent = SliderFill
+
+local draggingSlider = false
+
+local function updateSlider(input)
+    local mouseX = input.Position.X
+    local bgX = SliderBg.AbsolutePosition.X
+    local bgWidth = SliderBg.AbsoluteSize.X
+    local pct = math.clamp((mouseX - bgX) / bgWidth, 0, 1)
+    
+    SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+    powerMultiplier = 0.2 + (pct * 2.8)
+    
+    local displayPct = math.floor(pct * 100)
+    if pct >= 0.95 then
+        SliderLabel.Text = "🔥 القوة القصوى: 100% 🔥"
+        SliderLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    else
+        SliderLabel.Text = "⚡ القوة: " .. displayPct .. "%"
+        SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+    
+    if Music then
+        Music.Volume = 1.5 * powerMultiplier
+    end
+end
+
+SliderBg.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = ToggleBtn.Position
+        draggingSlider = true
+        updateSlider(input)
+    end
+end)
 
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = false
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        local viewportSize = Camera.ViewportSize
-        local btnSize = ToggleBtn.AbsoluteSize
-
-        local newX = math.clamp(startPos.X.Offset + delta.X, 0, viewportSize.X - btnSize.X)
-        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, viewportSize.Y - btnSize.Y)
-
-        ToggleBtn.Position = UDim2.new(0, newX, 0, newY)
+    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateSlider(input)
     end
 end)
 
-ToggleBtn.MouseButton1Click:Connect(function()
-    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
-    task.wait(0.05)
-    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
-end)
+-- حالة التشغيل
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Parent = MainFrame
+StatusLabel.Size = UDim2.new(1, 0, 0, 18)
+StatusLabel.Position = UDim2.new(0, 0, 0, 195)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "الحالة: شغال 🎵"
+StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 11
 
-local function GetPlayerNames()
-    local names = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then table.insert(names, p.Name) end
-    end
-    return #names > 0 and names or {"لا يوجد لاعبين"}
+-- ==================== مربع عدد المتصلين بالسكريبت ====================
+local OnlineBox = Instance.new("Frame")
+OnlineBox.Name = "OnlineBox"
+OnlineBox.Parent = MainFrame
+OnlineBox.Size = UDim2.new(0.9, 0, 0, 26)
+OnlineBox.Position = UDim2.new(0.05, 0, 0, 222)
+OnlineBox.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+
+local OnlineCorner = Instance.new("UICorner")
+OnlineCorner.CornerRadius = UDim.new(0, 6)
+OnlineCorner.Parent = OnlineBox
+
+local OnlineStroke = Instance.new("UIStroke")
+OnlineStroke.Parent = OnlineBox
+OnlineStroke.Thickness = 1
+OnlineStroke.Color = Color3.fromRGB(45, 45, 45)
+
+local GreenDot = Instance.new("Frame")
+GreenDot.Parent = OnlineBox
+GreenDot.Size = UDim2.new(0, 8, 0, 8)
+GreenDot.Position = UDim2.new(0, 10, 0.5, -4)
+GreenDot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = GreenDot
+
+local OnlineText = Instance.new("TextLabel")
+OnlineText.Name = "OnlineText"
+OnlineText.Parent = OnlineBox
+OnlineText.Size = UDim2.new(1, -25, 1, 0)
+OnlineText.Position = UDim2.new(0, 22, 0, 0)
+OnlineText.BackgroundTransparency = 1
+OnlineText.Text = "المتصلين بالسكريبت: جاري التحميل..."
+OnlineText.TextColor3 = Color3.fromRGB(220, 220, 220)
+OnlineText.Font = Enum.Font.SourceSansBold
+OnlineText.TextSize = 11
+OnlineText.TextXAlignment = Enum.TextXAlignment.Left
+
+-- نظام جلب وتحديث المتصلين بدون أي أخطاء (pcall)
+local function refreshOnlineCount()
+    task.spawn(function()
+        local count = 1
+        local success, response = pcall(function()
+            return game:HttpGet("https://api.counterapi.dev/v1/xcw7x_script/online_users/up")
+        end)
+        
+        if success and response then
+            pcall(function()
+                local data = HttpService:JSONDecode(response)
+                if data and data.count then
+                    count = data.count
+                end
+            end)
+        end
+        
+        OnlineText.Text = "المتصلين بالسكريبت: " .. tostring(count) .. " 👤"
+    end)
 end
 
--- تجميد تام وإلغاء التصادمات للشخصية
-local function ApplyStableGhost(char)
-    if char:FindFirstChild("Animate") then
-        char.Animate.Disabled = true
+-- تشغيل أول مرة وتحديث تلقائي كل 30 ثانية
+refreshOnlineCount()
+task.spawn(function()
+    while true do
+        task.wait(30)
+        refreshOnlineCount()
     end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-        humanoid.AutoRotate = false
+end)
+
+-- ==================== أحداث تشغيل الصوت ====================
+
+local function playAudio(id)
+    local cleanId = string.match(tostring(id), "%d+")
+    if cleanId then
+        Music:Stop()
+        Music.TimePosition = 0
+        Music.SoundId = "rbxassetid://" .. cleanId
+        Music.Volume = 1.5 * powerMultiplier
+        Music:Play()
+        
+        StopBtn.Text = "⬛ إيقاف الأغنية"
+        StatusLabel.Text = "جاري تشغيل: " .. cleanId
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+    else
+        StatusLabel.Text = "الكود غير صحيح!"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
     end
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-            part.Velocity = Vector3.new(0, 0, 0)
-            part.RotVelocity = Vector3.new(0, 0, 0)
+end
+
+playAudio(SINGLE_SONG_ID)
+
+PlayCustomBtn.MouseButton1Click:Connect(function() playAudio(SongInput.Text) end)
+PlayRandomBtn.MouseButton1Click:Connect(function()
+    SongInput.Text = SINGLE_SONG_ID
+    playAudio(SINGLE_SONG_ID)
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+    if Music.IsPlaying then
+        Music:Pause()
+        StopBtn.Text = "▶ استئناف"
+        StatusLabel.Text = "الحالة: متوقف مؤقتاً ⏸"
+    else
+        if Music.SoundId ~= "" then
+            Music:Resume()
+            StopBtn.Text = "⬛ إيقاف الأغنية"
+            StatusLabel.Text = "الحالة: شغال 🎵"
         end
     end
-end
+end)
 
--- التحكم بالمشاهدة
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenButton.Visible = true
+end)
+
+OpenButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenButton.Visible = false
+end)
+
+-- ==================== النبض الموحد بالكامل مع الصوت ====================
+
+local currentAlpha = 0
+
 RunService.RenderStepped:Connect(function()
-    pcall(function()
-        if SpectateEnabled and SelectedPlayerName then
-            local targetPlayer = Players:FindFirstChild(SelectedPlayerName)
-            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                Camera.CameraSubject = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            end
-        else
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                end
-            end
-        end
-    end)
-end)
-
--- التثبيت الثابت حسب الوضعية + الهيتش بوكس + السرعة
-RunService.Heartbeat:Connect(function()
-    pcall(function()
-        -- 1. نظام الهيتش بوكس للاعبين الآخرين
-        if HitboxEnabled then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local rootPart = p.Character:FindFirstChild("HumanoidRootPart")
-                    if rootPart then
-                        rootPart.Size = Vector3.new(HitboxSizeValue, HitboxSizeValue, HitboxSizeValue)
-                        rootPart.Transparency = 0.6
-                        rootPart.CanCollide = false
-                    end
-                end
-            end
-        end
-
-        -- 2. التتبع حسب الوضعية المختارة (بدون نطنطة)
-        local myChar = LocalPlayer.Character
-        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-            if AutoTargetEnabled and SelectedPlayerName then
-                ApplyStableGhost(myChar)
-                local targetPlayer = Players:FindFirstChild(SelectedPlayerName)
-                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local targetRoot = targetPlayer.Character.HumanoidRootPart
-                    local offsetCF = CFrame.new(0, -TargetDistanceValue, 0)
-
-                    if TrackingMode == "فوق اللاعب (On Top)" then
-                        offsetCF = CFrame.new(0, TargetDistanceValue, 0)
-                    elseif TrackingMode == "خلف اللاعب (Behind)" then
-                        offsetCF = CFrame.new(0, 0, TargetDistanceValue)
-                    elseif TrackingMode == "أمام اللاعب (In Front)" then
-                        offsetCF = CFrame.new(0, 0, -TargetDistanceValue)
-                    elseif TrackingMode == "تحت اللاعب (Under)" then
-                        offsetCF = CFrame.new(0, -TargetDistanceValue, 0)
-                    end
-
-                    myChar.HumanoidRootPart.CFrame = targetRoot.CFrame * offsetCF
-                    myChar.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
-                    myChar.HumanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
-                end
-            end
-
-            -- 3. فرض السرعة باستمرار لمنع الماب من إعادتها
-            if SpeedValue > 16 then
-                local hum = myChar:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.WalkSpeed = SpeedValue
-                end
-            end
-        end
-    end)
-end)
-
--- النافذة
-local Window = Fluent:CreateWindow({
-    Title = "Xcw7x | PRO",
-    SubTitle = "Complete Edition",
-    TabWidth = 130,
-    Size = UDim2.fromOffset(480, 360),
-    Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.RightControl
-})
-
-local MainTab = Window:AddTab({ Title = "الرئيسية", Icon = "home" })
-local OtherTab = Window:AddTab({ Title = "أخرى", Icon = "settings" })
-
--- محتويات الرئيسية
-local PlayerDropdown = MainTab:AddDropdown("Target", {
-    Title = "إختر اللاعب المستهدف للتتبع",
-    Values = GetPlayerNames(),
-    Callback = function(Value) SelectedPlayerName = Value end
-})
-
-MainTab:AddDropdown("TrackMode", {
-    Title = "وضعية التتبع بالنسبة للهدف",
-    Values = {
-        "تحت اللاعب (Under)",
-        "فوق اللاعب (On Top)",
-        "خلف اللاعب (Behind)",
-        "أمام اللاعب (In Front)"
-    },
-    Default = "تحت اللاعب (Under)",
-    Callback = function(Value)
-        TrackingMode = Value
+    local loudness = 0
+    if Music and Music.IsPlaying then
+        loudness = math.clamp(Music.PlaybackLoudness / 320, 0, 1)
     end
-})
 
-MainTab:AddDropdown("Depth", {
-    Title = "المسافة / العمق (تعديل بالـ 5)",
-    Values = {
-        "قريب جداً (5)",
-        "سطحي (10)",
-        "متوسط (15)",
-        "عميق (20)",
-        "عميق جداً (25)",
-        "أسفل الماب (30)",
-        "مخفي تماماً (35)",
-        "قاع الماب (40)",
-        "أقصى عمق (45)",
-        "الحد الأقصى (50)"
-    },
-    Default = "متوسط (15)",
-    Callback = function(Value)
-        if Value == "قريب جداً (5)" then TargetDistanceValue = 5
-        elseif Value == "سطحي (10)" then TargetDistanceValue = 10
-        elseif Value == "متوسط (15)" then TargetDistanceValue = 15
-        elseif Value == "عميق (20)" then TargetDistanceValue = 20
-        elseif Value == "عميق جداً (25)" then TargetDistanceValue = 25
-        elseif Value == "أسفل الماب (30)" then TargetDistanceValue = 30
-        elseif Value == "مخفي تماماً (35)" then TargetDistanceValue = 35
-        elseif Value == "قاع الماب (40)" then TargetDistanceValue = 40
-        elseif Value == "أقصى عمق (45)" then TargetDistanceValue = 45
-        elseif Value == "الحد الأقصى (50)" then TargetDistanceValue = 50
-        end
-    end
-})
+    local beat = loudness * powerMultiplier
+    local redChannel = math.clamp(math.floor(120 + (beat * 135)), 0, 255)
+    local dynamicColor = Color3.fromRGB(redChannel, 15, 25)
 
-MainTab:AddButton({
-    Title = "تحديث قائمة اللاعبين",
-    Callback = function()
-        local updated = GetPlayerNames()
-        PlayerDropdown:SetValues(updated)
-        PlayerDropdown:SetValue(updated[1] or "لا يوجد لاعبين")
-    end
-})
+    -- 1. نبض الحواف
+    local borderThickness = math.floor(2 + (beat * 8))
 
-MainTab:AddToggle("SpectateToggle", {
-    Title = "مشاهدة اللاعب (Spectate)",
-    Default = false,
-    Callback = function(Value)
-        SpectateEnabled = Value
-        if not Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-            Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        end
-    end
-})
+    TopBorder.BackgroundColor3 = dynamicColor
+    TopBorder.Position = UDim2.new(0, 0, 0, 0)
+    TopBorder.Size = UDim2.new(1, 0, 0, borderThickness)
 
-MainTab:AddToggle("AutoGhost", {
-    Title = "تفعيل التتبع بالوضعيات (ثابت بدون نطنطة)",
-    Callback = function(Value) 
-        AutoTargetEnabled = Value 
-        if not Value and LocalPlayer.Character then
-            if LocalPlayer.Character:FindFirstChild("Animate") then
-                LocalPlayer.Character.Animate.Disabled = false
-            end
-            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum then 
-                hum.PlatformStand = false 
-                hum.AutoRotate = true
-            end
-        end
-    end
-})
+    BottomBorder.BackgroundColor3 = dynamicColor
+    BottomBorder.Position = UDim2.new(0, 0, 1, -borderThickness)
+    BottomBorder.Size = UDim2.new(1, 0, 0, borderThickness)
 
-MainTab:AddToggle("HitboxToggle", {
-    Title = "تفعيل تكبير الهيتش بوكس (Hitbox)",
-    Default = false,
-    Callback = function(Value)
-        HitboxEnabled = Value
-    end
-})
-
-MainTab:AddDropdown("HitboxSize", {
-    Title = "حجم الهيتش بوكس",
-    Values = {"صغير (10)", "متوسط (15)", "كبير (25)", "ضخم جداً (40)"},
-    Default = "متوسط (15)",
-    Callback = function(Value)
-        if Value == "صغير (10)" then HitboxSizeValue = 10
-        elseif Value == "متوسط (15)" then HitboxSizeValue = 15
-        elseif Value == "كبير (25)" then HitboxSizeValue = 25
-        elseif Value == "ضخم جداً (40)" then HitboxSizeValue = 40
-        end
-    end
-})
-
--- محتويات تبويب "أخرى" (السرعة)
-OtherTab:AddSlider("SpeedSlider", {
-    Title = "سرعة اللاعب (WalkSpeed)",
-    Description = "تحكم في سرعة الشخصية",
-    Default = 16, Min = 16, Max = 150, Rounding = 0,
-    Callback = function(Value)
-        SpeedValue = Value
-        local myChar = LocalPlayer.Character
-        if myChar then
-            local hum = myChar:FindFirstChildOfClass("Humanoid")
-            if hum then
-                if SafeModeEnabled then
-                    TweenService:Create(hum, TweenInfo.new(0.5), {WalkSpeed = Value}):Play()
-                else
-                    hum.WalkSpeed = Value
-                end
-            end
-        end
-    end
-})
-
-OtherTab:AddToggle("SafeMode", {
-    Title = "وضع الحماية (Safe Mode)",
-    Description = "تحديث السرعة بشكل تدريجي لتجنب الكشف",
-    Default = true,
-    Callback = function(Value) SafeModeEnabled = Value end
-})
-
-Fluent:SetTheme({
-    Accent = Color3.fromRGB(255, 255, 255),
-    Background = Color3.fromRGB(15, 12, 22),
-    Main = Color3.fromRGB(30, 20, 45)
-})
+    LeftBorder.BackgroundColor3 = dynamicColor
+    LeftBorder.Po
