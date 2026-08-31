@@ -1,0 +1,552 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local TextService = game:GetService("TextService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ============================================
+-- 👑 إعدادات رتبة المطور (خاصة بك فقط)
+-- ============================================
+local DEV_USER_IDS = {
+    [LocalPlayer.UserId] = true, -- تفعل رتبة المطور تلقائياً لك
+}
+
+local function IsDeveloper(player)
+    return player and DEV_USER_IDS[player.UserId] or false
+end
+
+-- حذف الواجهة القديمة إن وجدت
+if PlayerGui:FindFirstChild("Xcw7xChatGui") then
+    PlayerGui.Xcw7xChatGui:Destroy()
+end
+
+-- 1. ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Xcw7xChatGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- 2. النافذة الرئيسية (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 420, 0, 330)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -165)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 25)
+MainFrame.BackgroundTransparency = 0.25
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = false
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 2
+MainStroke.Transparency = 0.2
+MainStroke.Parent = MainFrame
+
+-- 3. تأثير 35 دائرة متحركة
+local circles = {}
+for i = 1, 35 do
+    local circle = Instance.new("Frame")
+    circle.Name = "Circle_" .. i
+    local size = math.random(6, 18)
+    circle.Size = UDim2.new(0, size, 0, size)
+    circle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    circle.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    circle.BackgroundTransparency = math.random(50, 85) / 100
+    circle.BorderSizePixel = 0
+    circle.Parent = MainFrame
+
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(1, 0)
+    circleCorner.Parent = circle
+
+    table.insert(circles, {
+        frame = circle,
+        speed = math.random(15, 45) / 1000
+    })
+end
+
+-- 4. الهيدر (Header)
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(18, 24, 38)
+Header.BackgroundTransparency = 0.3
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 16)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(0, 150, 1, 0)
+Title.Position = UDim2.new(1, -160, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "💬 Xcw7x Chat"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Right
+Title.Parent = Header
+
+-- زر الإغلاق ✕
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(0, 10, 0.5, -15)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
+CloseBtn.BackgroundTransparency = 0.2
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = Header
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseBtn
+
+local CloseStroke = Instance.new("UIStroke")
+CloseStroke.Thickness = 1.5
+CloseStroke.Parent = CloseBtn
+
+-- زر الشات السريع ⚡
+local MiniToolBtn = Instance.new("TextButton")
+MiniToolBtn.Name = "MiniToolBtn"
+MiniToolBtn.Size = UDim2.new(0, 30, 0, 30)
+MiniToolBtn.Position = UDim2.new(0, 45, 0.5, -15)
+MiniToolBtn.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
+MiniToolBtn.BackgroundTransparency = 0.2
+MiniToolBtn.Text = "⚡"
+MiniToolBtn.TextSize = 14
+MiniToolBtn.Parent = Header
+
+local MiniToolCorner = Instance.new("UICorner")
+MiniToolCorner.CornerRadius = UDim.new(0, 8)
+MiniToolCorner.Parent = MiniToolBtn
+
+local MiniToolStroke = Instance.new("UIStroke")
+MiniToolStroke.Thickness = 1.5
+MiniToolStroke.Parent = MiniToolBtn
+
+-- زر CH / رجوع (الشات العالمي)
+local ToggleModeBtn = Instance.new("TextButton")
+ToggleModeBtn.Name = "ToggleModeBtn"
+ToggleModeBtn.Size = UDim2.new(0, 35, 0, 30)
+ToggleModeBtn.Position = UDim2.new(0, 80, 0.5, -15)
+ToggleModeBtn.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
+ToggleModeBtn.BackgroundTransparency = 0.2
+ToggleModeBtn.Text = "CH"
+ToggleModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleModeBtn.TextSize = 12
+ToggleModeBtn.Font = Enum.Font.GothamBold
+ToggleModeBtn.Parent = Header
+
+local ToggleModeCorner = Instance.new("UICorner")
+ToggleModeCorner.CornerRadius = UDim.new(0, 8)
+ToggleModeCorner.Parent = ToggleModeBtn
+
+local ToggleModeStroke = Instance.new("UIStroke")
+ToggleModeStroke.Thickness = 1.5
+ToggleModeStroke.Parent = ToggleModeBtn
+
+-- 📻 زر البومبوكس
+local BoomboxToggleBtn = Instance.new("TextButton")
+BoomboxToggleBtn.Name = "BoomboxToggleBtn"
+BoomboxToggleBtn.Size = UDim2.new(0, 32, 0, 30)
+BoomboxToggleBtn.Position = UDim2.new(0, 120, 0.5, -15)
+BoomboxToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
+BoomboxToggleBtn.BackgroundTransparency = 0.2
+BoomboxToggleBtn.Text = "📻"
+BoomboxToggleBtn.TextSize = 14
+BoomboxToggleBtn.Parent = Header
+
+local BoomboxToggleCorner = Instance.new("UICorner")
+BoomboxToggleCorner.CornerRadius = UDim.new(0, 8)
+BoomboxToggleCorner.Parent = BoomboxToggleBtn
+
+local BoomboxToggleStroke = Instance.new("UIStroke")
+BoomboxToggleStroke.Thickness = 1.5
+BoomboxToggleStroke.Parent = BoomboxToggleBtn
+
+-- ============================================
+-- 5. حاوية وخانة إدخال شات السيرفر (Local)
+-- ============================================
+local LocalChatContainer = Instance.new("ScrollingFrame")
+LocalChatContainer.Name = "LocalChatContainer"
+LocalChatContainer.Size = UDim2.new(1, -20, 1, -115)
+LocalChatContainer.Position = UDim2.new(0, 10, 0, 55)
+LocalChatContainer.BackgroundTransparency = 1
+LocalChatContainer.BorderSizePixel = 0
+LocalChatContainer.ScrollBarThickness = 4
+LocalChatContainer.ScrollBarImageColor3 = Color3.fromRGB(100, 180, 255)
+LocalChatContainer.Visible = true
+LocalChatContainer.Parent = MainFrame
+
+local LocalListLayout = Instance.new("UIListLayout")
+LocalListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+LocalListLayout.Padding = UDim.new(0, 8)
+LocalListLayout.Parent = LocalChatContainer
+
+LocalListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    LocalChatContainer.CanvasSize = UDim2.new(0, 0, 0, LocalListLayout.AbsoluteContentSize.Y + 10)
+    LocalChatContainer.CanvasPosition = Vector2.new(0, LocalListLayout.AbsoluteContentSize.Y)
+end)
+
+local LocalInputContainer = Instance.new("Frame")
+LocalInputContainer.Name = "LocalInputContainer"
+LocalInputContainer.Size = UDim2.new(1, -20, 0, 42)
+LocalInputContainer.Position = UDim2.new(0, 10, 1, -50)
+LocalInputContainer.BackgroundColor3 = Color3.fromRGB(18, 24, 38)
+LocalInputContainer.BackgroundTransparency = 0.3
+LocalInputContainer.Visible = true
+LocalInputContainer.Parent = MainFrame
+
+local LocalInputCorner = Instance.new("UICorner")
+LocalInputCorner.CornerRadius = UDim.new(0, 10)
+LocalInputCorner.Parent = LocalInputContainer
+
+local LocalInputStroke = Instance.new("UIStroke")
+LocalInputStroke.Thickness = 1.5
+LocalInputStroke.Parent = LocalInputContainer
+
+local LocalSendBtn = Instance.new("TextButton")
+LocalSendBtn.Size = UDim2.new(0, 75, 1, -8)
+LocalSendBtn.Position = UDim2.new(0, 4, 0, 4)
+LocalSendBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+LocalSendBtn.Text = "إرسال"
+LocalSendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+LocalSendBtn.TextSize = 14
+LocalSendBtn.Font = Enum.Font.GothamBold
+LocalSendBtn.Parent = LocalInputContainer
+
+local LocalSendCorner = Instance.new("UICorner")
+LocalSendCorner.CornerRadius = UDim.new(0, 8)
+LocalSendCorner.Parent = LocalSendBtn
+
+local LocalTextBox = Instance.new("TextBox")
+LocalTextBox.Size = UDim2.new(1, -90, 1, 0)
+LocalTextBox.Position = UDim2.new(0, 85, 0, 0)
+LocalTextBox.BackgroundTransparency = 1
+LocalTextBox.PlaceholderText = "شات السيرفر..."
+LocalTextBox.PlaceholderColor3 = Color3.fromRGB(140, 170, 210)
+LocalTextBox.Text = ""
+LocalTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+LocalTextBox.TextSize = 14
+LocalTextBox.Font = Enum.Font.Gotham
+LocalTextBox.TextXAlignment = Enum.TextXAlignment.Right
+LocalTextBox.ClearTextOnFocus = false
+LocalTextBox.Parent = LocalInputContainer
+
+-- ============================================
+-- 🌐 6. حاوية وخانة إدخال الشات العالمي (Global CH)
+-- ============================================
+local GlobalChatContainer = Instance.new("ScrollingFrame")
+GlobalChatContainer.Name = "GlobalChatContainer"
+GlobalChatContainer.Size = UDim2.new(1, -20, 1, -115)
+GlobalChatContainer.Position = UDim2.new(0, 10, 0, 55)
+GlobalChatContainer.BackgroundTransparency = 1
+GlobalChatContainer.BorderSizePixel = 0
+GlobalChatContainer.ScrollBarThickness = 4
+GlobalChatContainer.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
+GlobalChatContainer.Visible = false
+GlobalChatContainer.Parent = MainFrame
+
+local GlobalListLayout = Instance.new("UIListLayout")
+GlobalListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+GlobalListLayout.Padding = UDim.new(0, 8)
+GlobalListLayout.Parent = GlobalChatContainer
+
+GlobalListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    GlobalChatContainer.CanvasSize = UDim2.new(0, 0, 0, GlobalListLayout.AbsoluteContentSize.Y + 10)
+    GlobalChatContainer.CanvasPosition = Vector2.new(0, GlobalListLayout.AbsoluteContentSize.Y)
+end)
+
+local GlobalInputContainer = Instance.new("Frame")
+GlobalInputContainer.Name = "GlobalInputContainer"
+GlobalInputContainer.Size = UDim2.new(1, -20, 0, 42)
+GlobalInputContainer.Position = UDim2.new(0, 10, 1, -50)
+GlobalInputContainer.BackgroundColor3 = Color3.fromRGB(18, 24, 38)
+GlobalInputContainer.BackgroundTransparency = 0.3
+GlobalInputContainer.Visible = false
+GlobalInputContainer.Parent = MainFrame
+
+local GlobalInputCorner = Instance.new("UICorner")
+GlobalInputCorner.CornerRadius = UDim.new(0, 10)
+GlobalInputCorner.Parent = GlobalInputContainer
+
+local GlobalInputStroke = Instance.new("UIStroke")
+GlobalInputStroke.Thickness = 1.5
+GlobalInputStroke.Parent = GlobalInputContainer
+
+local GlobalSendBtn = Instance.new("TextButton")
+GlobalSendBtn.Size = UDim2.new(0, 75, 1, -8)
+GlobalSendBtn.Position = UDim2.new(0, 4, 0, 4)
+GlobalSendBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+GlobalSendBtn.Text = "إرسال"
+GlobalSendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+GlobalSendBtn.TextSize = 14
+GlobalSendBtn.Font = Enum.Font.GothamBold
+GlobalSendBtn.Parent = GlobalInputContainer
+
+local GlobalSendCorner = Instance.new("UICorner")
+GlobalSendCorner.CornerRadius = UDim.new(0, 8)
+GlobalSendCorner.Parent = GlobalSendBtn
+
+local GlobalTextBox = Instance.new("TextBox")
+GlobalTextBox.Size = UDim2.new(1, -90, 1, 0)
+GlobalTextBox.Position = UDim2.new(0, 85, 0, 0)
+GlobalTextBox.BackgroundTransparency = 1
+GlobalTextBox.PlaceholderText = "اكتب لشات CH العالمي..."
+GlobalTextBox.PlaceholderColor3 = Color3.fromRGB(140, 170, 210)
+GlobalTextBox.Text = ""
+GlobalTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+GlobalTextBox.TextSize = 14
+GlobalTextBox.Font = Enum.Font.Gotham
+GlobalTextBox.TextXAlignment = Enum.TextXAlignment.Right
+GlobalTextBox.ClearTextOnFocus = false
+GlobalTextBox.Parent = GlobalInputContainer
+
+-- ============================================
+-- 📻 7. نافذة البومبوكس (Boombox Panel)
+-- ============================================
+local BoomboxFrame = Instance.new("Frame")
+BoomboxFrame.Name = "BoomboxFrame"
+BoomboxFrame.Size = UDim2.new(0, 260, 0, 175)
+BoomboxFrame.Position = UDim2.new(0.5, -130, 0.5, -87)
+BoomboxFrame.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
+BoomboxFrame.BackgroundTransparency = 0.15
+BoomboxFrame.Visible = false
+BoomboxFrame.ZIndex = 5
+BoomboxFrame.Parent = MainFrame
+
+local BoomboxCorner = Instance.new("UICorner")
+BoomboxCorner.CornerRadius = UDim.new(0, 12)
+BoomboxCorner.Parent = BoomboxFrame
+
+local BoomboxStroke = Instance.new("UIStroke")
+BoomboxStroke.Thickness = 2
+BoomboxStroke.Parent = BoomboxFrame
+
+local BoomboxHeader = Instance.new("TextLabel")
+BoomboxHeader.Size = UDim2.new(1, 0, 0, 35)
+BoomboxHeader.BackgroundTransparency = 1
+BoomboxHeader.Text = "📻 بومبوكس Xcw7x (قريب فقط)"
+BoomboxHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+BoomboxHeader.TextSize = 13
+BoomboxHeader.Font = Enum.Font.GothamBold
+BoomboxHeader.ZIndex = 6
+BoomboxHeader.Parent = BoomboxFrame
+
+local BoomboxInput = Instance.new("TextBox")
+BoomboxInput.Size = UDim2.new(1, -30, 0, 38)
+BoomboxInput.Position = UDim2.new(0, 15, 0, 45)
+BoomboxInput.BackgroundColor3 = Color3.fromRGB(22, 30, 48)
+BoomboxInput.PlaceholderText = "ضع كود الأغنية (Sound ID)..."
+BoomboxInput.PlaceholderColor3 = Color3.fromRGB(130, 160, 200)
+BoomboxInput.Text = ""
+BoomboxInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+BoomboxInput.TextSize = 13
+BoomboxInput.Font = Enum.Font.Gotham
+BoomboxInput.ZIndex = 6
+BoomboxInput.Parent = BoomboxFrame
+
+local BoomboxInputCorner = Instance.new("UICorner")
+BoomboxInputCorner.CornerRadius = UDim.new(0, 8)
+BoomboxInputCorner.Parent = BoomboxInput
+
+local PlayAudioBtn = Instance.new("TextButton")
+PlayAudioBtn.Size = UDim2.new(0, 105, 0, 36)
+PlayAudioBtn.Position = UDim2.new(0, 15, 0, 95)
+PlayAudioBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+PlayAudioBtn.Text = "▶ تشغيل"
+PlayAudioBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayAudioBtn.TextSize = 13
+PlayAudioBtn.Font = Enum.Font.GothamBold
+PlayAudioBtn.ZIndex = 6
+PlayAudioBtn.Parent = BoomboxFrame
+
+local PlayCorner = Instance.new("UICorner")
+PlayCorner.CornerRadius = UDim.new(0, 8)
+PlayCorner.Parent = PlayAudioBtn
+
+local StopAudioBtn = Instance.new("TextButton")
+StopAudioBtn.Size = UDim2.new(0, 105, 0, 36)
+StopAudioBtn.Position = UDim2.new(1, -120, 0, 95)
+StopAudioBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+StopAudioBtn.Text = "⏹ إيقاف"
+StopAudioBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopAudioBtn.TextSize = 13
+StopAudioBtn.Font = Enum.Font.GothamBold
+StopAudioBtn.ZIndex = 6
+StopAudioBtn.Parent = BoomboxFrame
+
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 8)
+StopCorner.Parent = StopAudioBtn
+
+local BbNotice = Instance.new("TextLabel")
+BbNotice.Size = UDim2.new(1, -20, 0, 25)
+BbNotice.Position = UDim2.new(0, 10, 1, -30)
+BbNotice.BackgroundTransparency = 1
+BbNotice.Text = "💡 تنسمع فقط لمستخدمي السكربت القريبين منك!"
+BbNotice.TextColor3 = Color3.fromRGB(170, 200, 240)
+BbNotice.TextSize = 10
+BbNotice.Font = Enum.Font.Gotham
+BbNotice.ZIndex = 6
+BbNotice.Parent = BoomboxFrame
+
+-- 8. مربع التصغير X7
+local X7Btn = Instance.new("TextButton")
+X7Btn.Name = "X7Btn"
+X7Btn.Size = UDim2.new(0, 48, 0, 48)
+X7Btn.Position = UDim2.new(0, 20, 0.5, -24)
+X7Btn.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
+X7Btn.BackgroundTransparency = 0.25
+X7Btn.Text = "X7"
+X7Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+X7Btn.TextSize = 18
+X7Btn.Font = Enum.Font.GothamBold
+X7Btn.Visible = false
+X7Btn.Parent = ScreenGui
+
+local X7Corner = Instance.new("UICorner")
+X7Corner.CornerRadius = UDim.new(0, 12)
+X7Corner.Parent = X7Btn
+
+local X7Stroke = Instance.new("UIStroke")
+X7Stroke.Thickness = 2
+X7Stroke.Parent = X7Btn
+
+-- 9. أداة الشات المصغرة السريعة (⚡)
+local MiniChatFrame = Instance.new("Frame")
+MiniChatFrame.Name = "MiniChatFrame"
+MiniChatFrame.Size = UDim2.new(0, 280, 0, 42)
+MiniChatFrame.Position = UDim2.new(0.5, -140, 0.85, 0)
+MiniChatFrame.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
+MiniChatFrame.BackgroundTransparency = 0.2
+MiniChatFrame.Visible = false
+MiniChatFrame.Parent = ScreenGui
+
+local MiniChatCorner = Instance.new("UICorner")
+MiniChatCorner.CornerRadius = UDim.new(0, 10)
+MiniChatCorner.Parent = MiniChatFrame
+
+local MiniChatStroke = Instance.new("UIStroke")
+MiniChatStroke.Thickness = 1.5
+MiniChatStroke.Parent = MiniChatFrame
+
+local MiniTextBox = Instance.new("TextBox")
+MiniTextBox.Size = UDim2.new(1, -65, 1, 0)
+MiniTextBox.Position = UDim2.new(0, 60, 0, 0)
+MiniTextBox.BackgroundTransparency = 1
+MiniTextBox.PlaceholderText = "شات سريع..."
+MiniTextBox.PlaceholderColor3 = Color3.fromRGB(140, 170, 210)
+MiniTextBox.Text = ""
+MiniTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniTextBox.TextSize = 13
+MiniTextBox.Font = Enum.Font.Gotham
+MiniTextBox.TextXAlignment = Enum.TextXAlignment.Right
+MiniTextBox.ClearTextOnFocus = false
+MiniTextBox.Parent = MiniChatFrame
+
+local MiniSendBtn = Instance.new("TextButton")
+MiniSendBtn.Size = UDim2.new(0, 50, 1, -8)
+MiniSendBtn.Position = UDim2.new(0, 4, 0, 4)
+MiniSendBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+MiniSendBtn.Text = "إرسال"
+MiniSendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniSendBtn.TextSize = 12
+MiniSendBtn.Font = Enum.Font.GothamBold
+MiniSendBtn.Parent = MiniChatFrame
+
+local MiniSendCorner = Instance.new("UICorner")
+MiniSendCorner.CornerRadius = UDim.new(0, 8)
+MiniSendCorner.Parent = MiniSendBtn
+
+-- ============================================
+-- 🎵 10. محرك صوت البومبوكس 3D
+-- ============================================
+local function Play3DSoundForPlayer(targetPlayer, soundId)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local hrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart") or targetPlayer.Character:FindFirstChild("Head")
+    if not hrp then return end
+
+    local oldSound = hrp:FindFirstChild("Xcw7x3DSound")
+    if oldSound then oldSound:Destroy() end
+
+    if not soundId or soundId == "" or soundId == "STOP" then return end
+
+    local sound = Instance.new("Sound")
+    sound.Name = "Xcw7x3DSound"
+    sound.SoundId = "rbxassetid://" .. soundId
+    sound.Volume = 2.5
+    sound.RollOffMinDistance = 10
+    sound.RollOffMaxDistance = 60
+    sound.RollOffMode = Enum.RollOffMode.Linear
+    sound.Looped = true
+    sound.Parent = hrp
+    sound:Play()
+end
+
+local function BroadcastAudioSignal(soundId)
+    Play3DSoundForPlayer(LocalPlayer, soundId)
+    local payload = "[Xcw7xAudio:" .. soundId .. "]"
+    
+    pcall(function()
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local channel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+            if channel then channel:SendAsync(payload) end
+        else
+            local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            local sayMsg = events and events:FindFirstChild("SayMessageRequest")
+            if sayMsg then sayMsg:FireServer(payload, "All") end
+        end
+    end)
+end
+
+local function ListenToPlayerAudio(player)
+    player.Chatted:Connect(function(msg)
+        local soundId = msg:match("^%[Xcw7xAudio:(%d+)%]$")
+        if soundId then
+            Play3DSoundForPlayer(player, soundId)
+        elseif msg == "[Xcw7xAudio:STOP]" then
+            Play3DSoundForPlayer(player, "STOP")
+        end
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    ListenToPlayerAudio(p)
+end
+Players.PlayerAdded:Connect(ListenToPlayerAudio)
+
+PlayAudioBtn.MouseButton1Click:Connect(function()
+    local id = BoomboxInput.Text:match("%d+")
+    if id then BroadcastAudioSignal(id) end
+end)
+
+StopAudioBtn.MouseButton1Click:Connect(function()
+    BroadcastAudioSignal("STOP")
+end)
+
+BoomboxToggleBtn.MouseButton1Click:Connect(function()
+    BoomboxFrame.Visible = not BoomboxFrame.Visible
+end)
+
+-- ============================================
+-- 👑 11. دالة الشات فوق الرأس (Head Bubble مع تاج المطور لك فقط)
+-- ============================================
+local function CreateHeadBubble(text)
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("Head") then retur
