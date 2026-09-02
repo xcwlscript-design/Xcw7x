@@ -1,0 +1,534 @@
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local TCS = game:GetService("TextChatService")
+local RS = game:GetService("ReplicatedStorage")
+local TS = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+-- 🌐 Cross-Executor HTTP Request Support
+local httpRequest = (syn and syn.request) or http_request or request or (http and http.request)
+
+-- 👑 Developer Check (XCW7H)
+local function IsDev(p) 
+    if typeof(p) == "Instance" and p:IsA("Player") then
+        return p.Name:upper() == "XCW7H"
+    elseif type(p) == "string" then
+        return p:upper() == "XCW7H"
+    end
+    return false
+end
+
+-- Clean old UI
+if LP.PlayerGui:FindFirstChild("X7Chat") then 
+    LP.PlayerGui.X7Chat:Destroy() 
+end
+
+local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
+ScreenGui.Name = "X7Chat"
+ScreenGui.ResetOnSpawn = false
+
+-- Main Frame
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 320, 0, 220)
+Main.Position = UDim2.new(0.5, -160, 0.5, -110)
+Main.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+Main.BackgroundTransparency = 0.2
+Main.Active = true
+Main.Draggable = true
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Thickness = 1.2
+MainStroke.Color = Color3.fromRGB(0, 170, 255)
+
+-- ✨ Blue to White Smooth Color Animation (تأثير اللون الأزرق والأبيض)
+local colorTweenInfo = TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+TS:Create(MainStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- Title Header (تم إزالة كلمة Dev بشكل كامل)
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -135, 0, 24)
+Title.Position = UDim2.new(0, 10, 0, 2)
+Title.BackgroundTransparency = 1
+Title.Text = "X7Chat"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 12
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 👥 Active Users Counter (Local + Global Script Users)
+local UserCounter = Instance.new("TextLabel", Main)
+UserCounter.Size = UDim2.new(1, -20, 0, 16)
+UserCounter.Position = UDim2.new(0, 10, 0, 24)
+UserCounter.BackgroundTransparency = 1
+UserCounter.TextColor3 = Color3.fromRGB(0, 255, 170)
+UserCounter.Font = Enum.Font.GothamMedium
+UserCounter.TextSize = 10
+UserCounter.TextXAlignment = Enum.TextXAlignment.Left
+UserCounter.Text = "🟢 Server: 1/" .. #Players:GetPlayers() .. " | 🌐 Script Online: 1"
+
+-- Close Button (X)
+local CloseBtn = Instance.new("TextButton", Main)
+CloseBtn.Size = UDim2.new(0, 24, 0, 20)
+CloseBtn.Position = UDim2.new(1, -28, 0, 4)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 11
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+
+-- Minimize Button (Mini)
+local CompactBtn = Instance.new("TextButton", Main)
+CompactBtn.Size = UDim2.new(0, 35, 0, 20)
+CompactBtn.Position = UDim2.new(1, -67, 0, 4)
+CompactBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+CompactBtn.Text = "Mini"
+CompactBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CompactBtn.Font = Enum.Font.GothamBold
+CompactBtn.TextSize = 10
+Instance.new("UICorner", CompactBtn).CornerRadius = UDim.new(0, 4)
+
+-- 🌐 Global Chat Toggle Button
+local GlobalBtn = Instance.new("TextButton", Main)
+GlobalBtn.Size = UDim2.new(0, 52, 0, 20)
+GlobalBtn.Position = UDim2.new(1, -123, 0, 4)
+GlobalBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+GlobalBtn.Text = "🔒 Local"
+GlobalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+GlobalBtn.Font = Enum.Font.GothamBold
+GlobalBtn.TextSize = 9
+Instance.new("UICorner", GlobalBtn).CornerRadius = UDim.new(0, 4)
+
+-- Floating Toggle Button
+local MiniBtn = Instance.new("TextButton", ScreenGui)
+MiniBtn.Size = UDim2.new(0, 36, 0, 36)
+MiniBtn.Position = UDim2.new(0, 15, 0.5, -18)
+MiniBtn.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+MiniBtn.BackgroundTransparency = 0.2
+MiniBtn.Text = "X7"
+MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniBtn.Font = Enum.Font.GothamBold
+MiniBtn.TextSize = 13
+MiniBtn.Visible = false
+MiniBtn.Active = true
+MiniBtn.Draggable = true
+Instance.new("UICorner", MiniBtn).CornerRadius = UDim.new(0, 6)
+
+local MiniStroke = Instance.new("UIStroke", MiniBtn)
+MiniStroke.Color = Color3.fromRGB(0, 170, 255)
+TS:Create(MiniStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- ✨ Button Hover Effects
+local function AddHoverEffect(btn)
+    local origSize = btn.Size
+    btn.MouseEnter:Connect(function()
+        TS:Create(btn, TweenInfo.new(0.15), {Size = UDim2.new(origSize.X.Scale, origSize.X.Offset + 3, origSize.Y.Scale, origSize.Y.Offset + 3)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TS:Create(btn, TweenInfo.new(0.15), {Size = origSize}):Play()
+    end)
+end
+
+AddHoverEffect(CloseBtn)
+AddHoverEffect(CompactBtn)
+AddHoverEffect(GlobalBtn)
+AddHoverEffect(MiniBtn)
+
+-- Scrolling Message Container
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -16, 1, -82)
+Scroll.Position = UDim2.new(0, 8, 0, 44)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 2
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
+
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 3)
+
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
+    Scroll.CanvasPosition = Vector2.new(0, Layout.AbsoluteContentSize.Y)
+end)
+
+-- Input Text Box
+local InputBox = Instance.new("TextBox", Main)
+InputBox.Size = UDim2.new(1, -16, 0, 28)
+InputBox.Position = UDim2.new(0, 8, 1, -32)
+InputBox.BackgroundColor3 = Color3.fromRGB(20, 28, 40)
+InputBox.BackgroundTransparency = 0.3
+InputBox.PlaceholderText = "Local Chat (Only server messages)..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(140, 150, 170)
+InputBox.Text = ""
+InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextSize = 11
+InputBox.ClearTextOnFocus = false
+
+Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 5)
+local InputStroke = Instance.new("UIStroke", InputBox)
+InputStroke.Thickness = 1
+InputStroke.Color = Color3.fromRGB(0, 170, 255)
+TS:Create(InputStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- Notification Container
+local NotifContainer = Instance.new("Frame", ScreenGui)
+NotifContainer.Size = UDim2.new(0, 230, 0, 200)
+NotifContainer.AnchorPoint = Vector2.new(1, 1)
+NotifContainer.Position = UDim2.new(1, -12, 1, -12)
+NotifContainer.BackgroundTransparency = 1
+
+local NotifLayout = Instance.new("UIListLayout", NotifContainer)
+NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.Padding = UDim.new(0, 6)
+
+-- 🌐 Global Mode Variables
+local isGlobalActive = false
+local GLOBAL_API_URL = "https://xcw7x-global-chat.glitch.me"
+local receivedGlobalMsgIds = {}
+local globalOnlineUsersCount = 1
+
+-- 🔄 Update Counter Label
+local function UpdateUserCounter()
+    local localUsersCount = #Players:GetPlayers()
+    UserCounter.Text = "🟢 Server: " .. localUsersCount .. " | 🌐 Script Online: " .. globalOnlineUsersCount
+end
+
+-- 💓 Heartbeat System
+task.spawn(function()
+    while true do
+        if httpRequest then
+            pcall(function()
+                local res = httpRequest({
+                    Url = GLOBAL_API_URL .. "/heartbeat",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode({
+                        userId = LP.UserId,
+                        username = LP.Name
+                    })
+                })
+                if res and res.Body then
+                    local parsedData = HttpService:JSONDecode(res.Body)
+                    if parsedData and parsedData.onlineCount then
+                        globalOnlineUsersCount = parsedData.onlineCount
+                        UpdateUserCounter()
+                    end
+                end
+            end)
+        end
+        task.wait(15)
+    end
+end)
+
+-- 🔄 Refresh Chat Visibility
+local function RefreshChatVisibility()
+    for _, child in ipairs(Scroll:GetChildren()) do
+        if child:IsA("TextLabel") then
+            local isMsgGlobal = child:GetAttribute("IsGlobal") or false
+            child.Visible = (isMsgGlobal == isGlobalActive)
+        end
+    end
+end
+
+GlobalBtn.MouseButton1Click:Connect(function()
+    isGlobalActive = not isGlobalActive
+    if isGlobalActive then
+        GlobalBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
+        GlobalBtn.Text = "🌐 Global"
+        InputBox.PlaceholderText = "Global Chat (Only global messages)..."
+    else
+        GlobalBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        GlobalBtn.Text = "🔒 Local"
+        InputBox.PlaceholderText = "Local Chat (Only server messages)..."
+    end
+    RefreshChatVisibility()
+end)
+
+-- Window Controls
+CloseBtn.MouseButton1Click:Connect(function()
+    local tw = TS:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0)})
+    tw:Play()
+    tw.Completed:Connect(function()
+        Main.Visible = false
+        MiniBtn.Visible = true
+    end)
+end)
+
+MiniBtn.MouseButton1Click:Connect(function()
+    Main.Size = UDim2.new(0, 0, 0, 0)
+    Main.Visible = true
+    MiniBtn.Visible = false
+    TS:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 220)}):Play()
+end)
+
+local isCompact = false
+CompactBtn.MouseButton1Click:Connect(function()
+    isCompact = not isCompact
+    if isCompact then
+        Scroll.Visible = false
+        UserCounter.Visible = false
+        TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 62)}):Play()
+        InputBox.Position = UDim2.new(0, 8, 0, 28)
+        CompactBtn.Text = "Expand"
+    else
+        Scroll.Visible = true
+        UserCounter.Visible = true
+        TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 220)}):Play()
+        InputBox.Position = UDim2.new(0, 8, 1, -32)
+        CompactBtn.Text = "Mini"
+    end
+end)
+
+-- 🔔 Animated Notifications
+local function ShowNotification(playerOrName, text)
+    if not playerOrName then return end
+
+    local currentNotifs = NotifContainer:GetChildren()
+    if #currentNotifs > 3 then
+        for _, v in ipairs(currentNotifs) do
+            if v:IsA("CanvasGroup") or v:IsA("Frame") then
+                v:Destroy()
+                break
+            end
+        end
+    end
+
+    local notif = Instance.new("CanvasGroup", NotifContainer)
+    notif.Size = UDim2.new(1, 0, 0, 0)
+    notif.GroupTransparency = 1
+    notif.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
+
+    local isDev = IsDev(playerOrName)
+    local stroke = Instance.new("UIStroke", notif)
+    stroke.Thickness = 1.2
+    stroke.Color = isDev and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 170, 255)
+
+    local avatar = Instance.new("ImageLabel", notif)
+    avatar.Size = UDim2.new(0, 34, 0, 34)
+    avatar.Position = UDim2.new(0, 7, 0.5, -17)
+    avatar.BackgroundTransparency = 1
+    Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
+
+    local senderName = type(playerOrName) == "string" and playerOrName or playerOrName.Name
+    local userId = typeof(playerOrName) == "Instance" and playerOrName:IsA("Player") and playerOrName.UserId or nil
+
+    if userId then
+        task.spawn(function()
+            pcall(function()
+                local content = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                avatar.Image = content
+            end)
+        end)
+    end
+
+    local nameLbl = Instance.new("TextLabel", notif)
+    nameLbl.Size = UDim2.new(1, -50, 0, 16)
+    nameLbl.Position = UDim2.new(0, 48, 0, 5)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.RichText = true
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 11
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    if isDev then
+        nameLbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. senderName .. '</font>'
+    else
+        nameLbl.Text = '<font color="#00AAFF">' .. senderName .. '</font>'
+    end
+
+    local msgLbl = Instance.new("TextLabel", notif)
+    msgLbl.Size = UDim2.new(1, -50, 0, 18)
+    msgLbl.Position = UDim2.new(0, 48, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 11
+    msgLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Text = text
+
+    TS:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 0, 48),
+        GroupTransparency = 0.15
+    }):Play()
+
+    task.delay(3.5, function()
+        if notif and notif.Parent then
+            local fade = TS:Create(notif, TweenInfo.new(0.4), {
+                Size = UDim2.new(1, 0, 0, 0),
+                GroupTransparency = 1
+            })
+            fade:Play()
+            fade.Completed:Connect(function() notif:Destroy() end)
+        end
+    end)
+end
+
+-- 👑 Overhead Chat Bubbles
+local function CreateHeadBubble(player, text)
+    if not player or not player.Character then return end
+    local head = player.Character:FindFirstChild("Head")
+    if not head then return end
+
+    local old = head:FindFirstChild("X7Bubble")
+    if old then old:Destroy() end
+
+    local isDev = IsDev(player)
+    local bb = Instance.new("BillboardGui", head)
+    bb.Name = "X7Bubble"
+    bb.Adornee = head
+    bb.Size = UDim2.new(0, 200, 0, 36)
+    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.AlwaysOnTop = true
+
+    local lbl = Instance.new("TextLabel", bb)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+    lbl.BackgroundTransparency = 0.2
+    lbl.RichText = true
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextWrapped = true
+
+    if isDev then
+        lbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. player.Name .. ': ' .. text .. '</font>'
+    else
+        lbl.Text = '<font color="#00AAFF">[PLAYER]</font> <font color="#FFFFFF">' .. player.Name .. ': ' .. text .. '</font>'
+    end
+
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", lbl)
+    stroke.Thickness = 1.2
+    stroke.Color = Color3.fromRGB(0, 0, 0)
+
+    task.delay(3.6, function()
+        if bb and bb.Parent then
+            TS:Create(lbl, TweenInfo.new(0.4), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+            TS:Create(stroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
+            task.wait(0.4)
+            if bb and bb.Parent then bb:Destroy() end
+        end
+    end)
+end
+
+-- Add Chat Messages To Scroll View
+local function AddMessage(sender, msg, isDev, isGlobal)
+    local Lbl = Instance.new("TextLabel", Scroll)
+    Lbl.Size = UDim2.new(1, 0, 0, 0)
+    Lbl.AutomaticSize = Enum.AutomaticSize.Y
+    Lbl.BackgroundTransparency = 1
+    Lbl.RichText = true
+    Lbl.Font = Enum.Font.GothamBold
+    Lbl.TextSize = 12
+    Lbl.TextXAlignment = Enum.TextXAlignment.Left
+    Lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Lbl.TextWrapped = true
+
+    Lbl:SetAttribute("IsGlobal", isGlobal)
+    Lbl.Visible = (isGlobal == isGlobalActive)
+
+    local tag = isGlobal and '<font color="#A855F7">[GLOBAL]</font> ' or ''
+    if isDev then
+        Lbl.Text = tag .. '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. sender .. ': ' .. msg .. '</font>'
+    else
+        Lbl.Text = tag .. '<font color="#00AAFF">[PLAYER]</font> <font color="#FFFFFF">' .. sender .. ': ' .. msg .. '</font>'
+    end
+end
+
+-- Send Message Logic
+InputBox.FocusLost:Connect(function(enter)
+    if enter and InputBox.Text:gsub("%s+", "") ~= "" then
+        local msg = InputBox.Text
+        InputBox.Text = ""
+
+        if isGlobalActive then
+            AddMessage(LP.Name, msg, IsDev(LP), true)
+
+            if httpRequest then
+                task.spawn(function()
+                    pcall(function()
+                        httpRequest({
+                            Url = GLOBAL_API_URL .. "/send",
+                            Method = "POST",
+                            Headers = {["Content-Type"] = "application/json"},
+                            Body = HttpService:JSONEncode({
+                                sender = LP.Name,
+                                message = msg,
+                                isDev = IsDev(LP),
+                                userId = LP.UserId
+                            })
+                        })
+                    end)
+                end)
+            end
+        else
+            AddMessage(LP.Name, msg, IsDev(LP), false)
+            CreateHeadBubble(LP, msg)
+            ShowNotification(LP, msg)
+
+            pcall(function()
+                if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+                    local channel = TCS.TextChannels:FindFirstChild("RBXGeneral")
+                    if channel then channel:SendAsync(msg) end
+                else
+                    RS.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+                end
+            end)
+        end
+    end
+end)
+
+-- Player Connections
+local function ConnectPlayer(p)
+    if p == LP then return end
+    p.Chatted:Connect(function(msg)
+        UpdateUserCounter()
+        AddMessage(p.Name, msg, IsDev(p), false)
+        CreateHeadBubble(p, msg)
+        ShowNotification(p, msg)
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do ConnectPlayer(p) end
+Players.PlayerAdded:Connect(function(p)
+    ConnectPlayer(p)
+    UpdateUserCounter()
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    UpdateUserCounter()
+end)
+
+-- 🔄 Polling for Global Chat
+task.spawn(function()
+    while task.wait(2) do
+        if httpRequest then
+            pcall(function()
+                local res = httpRequest({
+                    Url = GLOBAL_API_URL .. "/messages",
+                    Method = "GET"
+                })
+                if res and res.Body then
+                    local data = HttpService:JSONDecode(res.Body)
+                    if data and type(data) == "table" then
+                        for _, item in ipairs(data) do
+                            if item.id and not receivedGlobalMsgIds[item.id] then
+                                receivedGlobalMsgIds[item.id] = true
+                                if item.userId ~= LP.UserId then
+                                    AddMessage(item.sender, item.message, item.isDev, true)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
