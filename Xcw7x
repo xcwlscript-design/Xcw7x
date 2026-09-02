@@ -1,0 +1,440 @@
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local TCS = game:GetService("TextChatService")
+local RS = game:GetService("ReplicatedStorage")
+local TS = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+-- 👑 Developer Check (XCW7H)
+local function IsDev(p) 
+    return p and p.Name:upper() == "XCW7H" 
+end
+
+-- Clean old UI
+if LP.PlayerGui:FindFirstChild("Xcw7xFastChat") then 
+    LP.PlayerGui.Xcw7xFastChat:Destroy() 
+end
+
+local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
+ScreenGui.Name = "Xcw7xFastChat"
+ScreenGui.ResetOnSpawn = false
+
+-- Main Frame
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 320, 0, 220)
+Main.Position = UDim2.new(0.5, -160, 0.5, -110)
+Main.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+Main.BackgroundTransparency = 0.2
+Main.Active = true
+Main.Draggable = true
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Thickness = 1.2
+MainStroke.Color = Color3.fromRGB(0, 170, 255)
+
+-- ✨ UI Border Pulse Animation
+local pulseInfo = TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+TS:Create(MainStroke, pulseInfo, {Transparency = 0.65}):Play()
+
+-- Title Header
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -125, 0, 24)
+Title.Position = UDim2.new(0, 10, 0, 2)
+Title.BackgroundTransparency = 1
+Title.Text = "⚡ Xcw7x Chat" .. (IsDev(LP) and " | 👑 Dev" or "")
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 12
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 👥 Active Users Counter
+local UserCounter = Instance.new("TextLabel", Main)
+UserCounter.Size = UDim2.new(1, -20, 0, 16)
+UserCounter.Position = UDim2.new(0, 10, 0, 24)
+UserCounter.BackgroundTransparency = 1
+UserCounter.TextColor3 = Color3.fromRGB(0, 255, 170)
+UserCounter.Font = Enum.Font.GothamMedium
+UserCounter.TextSize = 10
+UserCounter.TextXAlignment = Enum.TextXAlignment.Left
+UserCounter.Text = "🟢 Active Users: 1"
+
+-- Close Button (X)
+local CloseBtn = Instance.new("TextButton", Main)
+CloseBtn.Size = UDim2.new(0, 24, 0, 20)
+CloseBtn.Position = UDim2.new(1, -28, 0, 4)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 11
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+
+-- Minimize Button (Mini)
+local CompactBtn = Instance.new("TextButton", Main)
+CompactBtn.Size = UDim2.new(0, 35, 0, 20)
+CompactBtn.Position = UDim2.new(1, -67, 0, 4)
+CompactBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+CompactBtn.Text = "Mini"
+CompactBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CompactBtn.Font = Enum.Font.GothamBold
+CompactBtn.TextSize = 10
+Instance.new("UICorner", CompactBtn).CornerRadius = UDim.new(0, 4)
+
+-- Server Hop Button (Hop)
+local HopBtn = Instance.new("TextButton", Main)
+HopBtn.Size = UDim2.new(0, 42, 0, 20)
+HopBtn.Position = UDim2.new(1, -113, 0, 4)
+HopBtn.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+HopBtn.Text = "Hop"
+HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HopBtn.Font = Enum.Font.GothamBold
+HopBtn.TextSize = 10
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 4)
+
+-- Floating Toggle Button
+local MiniBtn = Instance.new("TextButton", ScreenGui)
+MiniBtn.Size = UDim2.new(0, 36, 0, 36)
+MiniBtn.Position = UDim2.new(0, 15, 0.5, -18)
+MiniBtn.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+MiniBtn.BackgroundTransparency = 0.2
+MiniBtn.Text = "⚡"
+MiniBtn.TextSize = 16
+MiniBtn.Visible = false
+MiniBtn.Active = true
+MiniBtn.Draggable = true
+Instance.new("UICorner", MiniBtn).CornerRadius = UDim.new(0, 6)
+local MiniStroke = Instance.new("UIStroke", MiniBtn)
+MiniStroke.Color = Color3.fromRGB(0, 170, 255)
+
+-- ✨ Button Hover Effects
+local function AddHoverEffect(btn)
+    local origSize = btn.Size
+    btn.MouseEnter:Connect(function()
+        TS:Create(btn, TweenInfo.new(0.15), {Size = UDim2.new(origSize.X.Scale, origSize.X.Offset + 3, origSize.Y.Scale, origSize.Y.Offset + 3)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TS:Create(btn, TweenInfo.new(0.15), {Size = origSize}):Play()
+    end)
+end
+
+AddHoverEffect(CloseBtn)
+AddHoverEffect(CompactBtn)
+AddHoverEffect(HopBtn)
+AddHoverEffect(MiniBtn)
+
+-- Scrolling Message Container
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -16, 1, -82)
+Scroll.Position = UDim2.new(0, 8, 0, 44)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 2
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
+
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 3)
+
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
+    Scroll.CanvasPosition = Vector2.new(0, Layout.AbsoluteContentSize.Y)
+end)
+
+-- Input Text Box
+local InputBox = Instance.new("TextBox", Main)
+InputBox.Size = UDim2.new(1, -16, 0, 28)
+InputBox.Position = UDim2.new(0, 8, 1, -32)
+InputBox.BackgroundColor3 = Color3.fromRGB(20, 28, 40)
+InputBox.BackgroundTransparency = 0.3
+InputBox.PlaceholderText = "Type a message and press Enter..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(140, 150, 170)
+InputBox.Text = ""
+InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextSize = 11
+InputBox.ClearTextOnFocus = false
+
+Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 5)
+local InputStroke = Instance.new("UIStroke", InputBox)
+InputStroke.Thickness = 1
+InputStroke.Color = Color3.fromRGB(0, 170, 255)
+
+-- Notification Container
+local NotifContainer = Instance.new("Frame", ScreenGui)
+NotifContainer.Size = UDim2.new(0, 230, 0, 200)
+NotifContainer.AnchorPoint = Vector2.new(1, 1)
+NotifContainer.Position = UDim2.new(1, -12, 1, -12)
+NotifContainer.BackgroundTransparency = 1
+
+local NotifLayout = Instance.new("UIListLayout", NotifContainer)
+NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.Padding = UDim.new(0, 6)
+
+-- 🚀 Server Hop to Highest Player Count
+local function HopToBiggestServer()
+    HopBtn.Text = "Wait"
+    task.spawn(function()
+        pcall(function()
+            local apiUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
+            local raw = game:HttpGet(apiUrl)
+            local data = HttpService:JSONDecode(raw)
+
+            if data and data.data then
+                for _, s in ipairs(data.data) do
+                    if s.id ~= game.JobId and s.playing < s.maxPlayers then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LP)
+                        return
+                    end
+                end
+            end
+        end)
+        HopBtn.Text = "Hop"
+    end)
+end
+
+HopBtn.MouseButton1Click:Connect(HopToBiggestServer)
+
+-- Window Controls
+CloseBtn.MouseButton1Click:Connect(function()
+    local tw = TS:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0)})
+    tw:Play()
+    tw.Completed:Connect(function()
+        Main.Visible = false
+        MiniBtn.Visible = true
+    end)
+end)
+
+MiniBtn.MouseButton1Click:Connect(function()
+    Main.Size = UDim2.new(0, 0, 0, 0)
+    Main.Visible = true
+    MiniBtn.Visible = false
+    TS:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 220)}):Play()
+end)
+
+local isCompact = false
+CompactBtn.MouseButton1Click:Connect(function()
+    isCompact = not isCompact
+    if isCompact then
+        Scroll.Visible = false
+        UserCounter.Visible = false
+        TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 62)}):Play()
+        InputBox.Position = UDim2.new(0, 8, 0, 28)
+        CompactBtn.Text = "Expand"
+    else
+        Scroll.Visible = true
+        UserCounter.Visible = true
+        TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 220)}):Play()
+        InputBox.Position = UDim2.new(0, 8, 1, -32)
+        CompactBtn.Text = "Mini"
+    end
+end)
+
+-- 👥 User Tracking Logic
+local activeUsers = {}
+local function UpdateUserCounter()
+    local count = 0
+    for _ in pairs(activeUsers) do count = count + 1 end
+    if count == 0 then count = 1 end
+    UserCounter.Text = "🟢 Active Users: " .. count .. " / " .. #Players:GetPlayers()
+end
+
+activeUsers[LP.UserId] = true
+UpdateUserCounter()
+
+-- 🔔 Animated Notifications
+local function ShowNotification(player, text)
+    if not player then return end
+
+    local currentNotifs = NotifContainer:GetChildren()
+    if #currentNotifs > 3 then
+        for _, v in ipairs(currentNotifs) do
+            if v:IsA("CanvasGroup") or v:IsA("Frame") then
+                v:Destroy()
+                break
+            end
+        end
+    end
+
+    local notif = Instance.new("CanvasGroup", NotifContainer)
+    notif.Size = UDim2.new(1, 0, 0, 0)
+    notif.GroupTransparency = 1
+    notif.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
+
+    local isDev = IsDev(player)
+    local stroke = Instance.new("UIStroke", notif)
+    stroke.Thickness = 1.2
+    stroke.Color = isDev and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 170, 255)
+
+    local avatar = Instance.new("ImageLabel", notif)
+    avatar.Size = UDim2.new(0, 34, 0, 34)
+    avatar.Position = UDim2.new(0, 7, 0.5, -17)
+    avatar.BackgroundTransparency = 1
+    Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
+
+    task.spawn(function()
+        pcall(function()
+            local content = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+            avatar.Image = content
+        end)
+    end)
+
+    local nameLbl = Instance.new("TextLabel", notif)
+    nameLbl.Size = UDim2.new(1, -50, 0, 16)
+    nameLbl.Position = UDim2.new(0, 48, 0, 5)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.RichText = true
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 11
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    if isDev then
+        nameLbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. player.Name .. '</font>'
+    else
+        nameLbl.Text = '<font color="#00AAFF">' .. player.Name .. '</font>'
+    end
+
+    local msgLbl = Instance.new("TextLabel", notif)
+    msgLbl.Size = UDim2.new(1, -50, 0, 18)
+    msgLbl.Position = UDim2.new(0, 48, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 11
+    msgLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Text = text
+
+    TS:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 0, 48),
+        GroupTransparency = 0.15
+    }):Play()
+
+    task.delay(3.5, function()
+        if notif and notif.Parent then
+            local fade = TS:Create(notif, TweenInfo.new(0.4), {
+                Size = UDim2.new(1, 0, 0, 0),
+                GroupTransparency = 1
+            })
+            fade:Play()
+            fade.Completed:Connect(function() notif:Destroy() end)
+        end
+    end)
+end
+
+-- 👑 Overhead Chat Bubbles
+local function CreateHeadBubble(player, text)
+    if not player or not player.Character then return end
+    local head = player.Character:FindFirstChild("Head")
+    if not head then return end
+
+    local old = head:FindFirstChild("Xcw7xBubble")
+    if old then old:Destroy() end
+
+    local isDev = IsDev(player)
+    local bb = Instance.new("BillboardGui", head)
+    bb.Name = "Xcw7xBubble"
+    bb.Adornee = head
+    bb.Size = UDim2.new(0, 200, 0, 36)
+    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.AlwaysOnTop = true
+
+    local lbl = Instance.new("TextLabel", bb)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+    lbl.BackgroundTransparency = 0.2
+    lbl.RichText = true
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextWrapped = true
+
+    if isDev then
+        lbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. player.Name .. ': ' .. text .. '</font>'
+    else
+        lbl.Text = '<font color="#00AAFF">[PLAYER]</font> <font color="#FFFFFF">' .. player.Name .. ': ' .. text .. '</font>'
+    end
+
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", lbl)
+    stroke.Thickness = 1.2
+    stroke.Color = Color3.fromRGB(0, 0, 0)
+
+    task.delay(3.6, function()
+        if bb and bb.Parent then
+            TS:Create(lbl, TweenInfo.new(0.4), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+            TS:Create(stroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
+            task.wait(0.4)
+            if bb and bb.Parent then bb:Destroy() end
+        end
+    end)
+end
+
+-- Add Chat Messages
+local function AddMessage(sender, msg, isDev)
+    local Lbl = Instance.new("TextLabel", Scroll)
+    Lbl.Size = UDim2.new(1, 0, 0, 0)
+    Lbl.AutomaticSize = Enum.AutomaticSize.Y
+    Lbl.BackgroundTransparency = 1
+    Lbl.RichText = true
+    Lbl.Font = Enum.Font.GothamBold
+    Lbl.TextSize = 12
+    Lbl.TextXAlignment = Enum.TextXAlignment.Left
+    Lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Lbl.TextWrapped = true
+
+    if isDev then
+        Lbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. sender .. ': ' .. msg .. '</font>'
+    else
+        Lbl.Text = '<font color="#00AAFF">[PLAYER]</font> <font color="#FFFFFF">' .. sender .. ': ' .. msg .. '</font>'
+    end
+end
+
+-- Send Message Logic
+InputBox.FocusLost:Connect(function(enter)
+    if enter and InputBox.Text:gsub("%s+", "") ~= "" then
+        local msg = InputBox.Text
+        InputBox.Text = ""
+
+        AddMessage(LP.Name, msg, IsDev(LP))
+        CreateHeadBubble(LP, msg)
+        ShowNotification(LP, msg)
+
+        pcall(function()
+            if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+                local channel = TCS.TextChannels:FindFirstChild("RBXGeneral")
+                if channel then channel:SendAsync(msg) end
+            else
+                RS.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+            end
+        end)
+    end
+end)
+
+-- Player Connections
+local function ConnectPlayer(p)
+    if p == LP then return end
+    p.Chatted:Connect(function(msg)
+        activeUsers[p.UserId] = true
+        UpdateUserCounter()
+
+        AddMessage(p.Name, msg, IsDev(p))
+        CreateHeadBubble(p, msg)
+        ShowNotification(p, msg)
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do ConnectPlayer(p) end
+Players.PlayerAdded:Connect(function(p)
+    ConnectPlayer(p)
+    UpdateUserCounter()
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    activeUsers[p.UserId] = nil
+    UpdateUserCounter()
+end)
