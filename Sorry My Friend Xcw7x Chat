@@ -1,0 +1,514 @@
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local TCS = game:GetService("TextChatService")
+local RS = game:GetService("ReplicatedStorage")
+local TS = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+-- 🌐 Cross-Executor HTTP Support
+local httpRequest = (syn and syn.request) or http_request or request or (http and http.request)
+local GLOBAL_API_URL = "https://xcw7x-global-chat.glitch.me"
+
+-- 👑 Developer Check (XCW7H)
+local function IsDev(p) 
+    if typeof(p) == "Instance" and p:IsA("Player") then
+        return p.Name:upper() == "XCW7H"
+    elseif type(p) == "string" then
+        return p:upper() == "XCW7H"
+    end
+    return false
+end
+
+-- Clean old UI
+if LP.PlayerGui:FindFirstChild("X7Chat") then 
+    LP.PlayerGui.X7Chat:Destroy() 
+end
+
+local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui)
+ScreenGui.Name = "X7Chat"
+ScreenGui.ResetOnSpawn = false
+
+-- 👥 Active Script Users Tracking
+local scriptUsers = {}
+scriptUsers[LP.Name] = true
+local globalOnlineCount = 1
+
+-- Main Frame
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 340, 0, 235)
+Main.Position = UDim2.new(0.5, -170, 0.5, -117)
+Main.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+Main.BackgroundTransparency = 0.15
+Main.Active = true
+Main.Draggable = true
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Thickness = 1.2
+MainStroke.Color = Color3.fromRGB(0, 170, 255)
+
+-- ✨ Smooth Neon Effect
+local colorTweenInfo = TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+TS:Create(MainStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- Title Header
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, -75, 0, 22)
+Title.Position = UDim2.new(0, 10, 0, 4)
+Title.BackgroundTransparency = 1
+Title.RichText = true
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 12
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+if IsDev(LP) then
+    Title.Text = 'X7Chat 💬 <font color="#FFD700">[👑 DEV MODE]</font>'
+else
+    Title.Text = 'X7Chat 💬 <font color="#00FFAA">[Script Network]</font>'
+end
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- 📊 Counter Label
+local UserCounter = Instance.new("TextLabel", Main)
+UserCounter.Size = UDim2.new(1, -20, 0, 16)
+UserCounter.Position = UDim2.new(0, 10, 0, 26)
+UserCounter.BackgroundTransparency = 1
+UserCounter.TextColor3 = Color3.fromRGB(0, 255, 170)
+UserCounter.Font = Enum.Font.GothamMedium
+UserCounter.TextSize = 10
+UserCounter.TextXAlignment = Enum.TextXAlignment.Left
+
+local function UpdateUserCounter()
+    local localServerCount = 0
+    for name, _ in pairs(scriptUsers) do
+        if Players:FindFirstChild(name) then
+            localServerCount = localServerCount + 1
+        end
+    end
+    UserCounter.Text = "🟢 Server: " .. localServerCount .. "/" .. #Players:GetPlayers() .. " | 🌐 World Active: " .. globalOnlineCount
+end
+
+UpdateUserCounter()
+
+-- 💓 Global Heartbeat System
+task.spawn(function()
+    while true do
+        if httpRequest then
+            pcall(function()
+                local res = httpRequest({
+                    Url = GLOBAL_API_URL .. "/heartbeat",
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode({
+                        userId = LP.UserId,
+                        username = LP.Name
+                    })
+                })
+                if res and res.Body then
+                    local data = HttpService:JSONDecode(res.Body)
+                    if data and data.onlineCount then
+                        globalOnlineCount = data.onlineCount
+                        UpdateUserCounter()
+                    end
+                end
+            end)
+        end
+        task.wait(12)
+    end
+end)
+
+-- Window Buttons
+local CloseBtn = Instance.new("TextButton", Main)
+CloseBtn.Size = UDim2.new(0, 24, 0, 20)
+CloseBtn.Position = UDim2.new(1, -28, 0, 4)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 11
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+
+local CompactBtn = Instance.new("TextButton", Main)
+CompactBtn.Size = UDim2.new(0, 35, 0, 20)
+CompactBtn.Position = UDim2.new(1, -67, 0, 4)
+CompactBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+CompactBtn.Text = "Mini"
+CompactBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CompactBtn.Font = Enum.Font.GothamBold
+CompactBtn.TextSize = 10
+Instance.new("UICorner", CompactBtn).CornerRadius = UDim.new(0, 4)
+
+local MiniBtn = Instance.new("TextButton", ScreenGui)
+MiniBtn.Size = UDim2.new(0, 38, 0, 38)
+MiniBtn.Position = UDim2.new(0, 15, 0.5, -19)
+MiniBtn.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+MiniBtn.BackgroundTransparency = 0.2
+MiniBtn.Text = "X7"
+MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniBtn.Font = Enum.Font.GothamBold
+MiniBtn.TextSize = 13
+MiniBtn.Visible = false
+MiniBtn.Active = true
+MiniBtn.Draggable = true
+Instance.new("UICorner", MiniBtn).CornerRadius = UDim.new(0, 6)
+
+local MiniStroke = Instance.new("UIStroke", MiniBtn)
+MiniStroke.Color = Color3.fromRGB(0, 170, 255)
+TS:Create(MiniStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- Scrolling Message Container
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -16, 1, -86)
+Scroll.Position = UDim2.new(0, 8, 0, 46)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 2
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
+
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 5)
+
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y)
+    Scroll.CanvasPosition = Vector2.new(0, Layout.AbsoluteContentSize.Y)
+end)
+
+-- Input Box
+local InputBox = Instance.new("TextBox", Main)
+InputBox.Size = UDim2.new(1, -16, 0, 28)
+InputBox.Position = UDim2.new(0, 8, 1, -32)
+InputBox.BackgroundColor3 = Color3.fromRGB(20, 28, 40)
+InputBox.BackgroundTransparency = 0.3
+InputBox.PlaceholderText = "اكتب رسالتك هنا..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(140, 150, 170)
+InputBox.Text = ""
+InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextSize = 11
+InputBox.ClearTextOnFocus = false
+
+Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 5)
+local InputStroke = Instance.new("UIStroke", InputBox)
+InputStroke.Thickness = 1
+InputStroke.Color = Color3.fromRGB(0, 170, 255)
+TS:Create(InputStroke, colorTweenInfo, {Color = Color3.fromRGB(255, 255, 255)}):Play()
+
+-- Notification Container
+local NotifContainer = Instance.new("Frame", ScreenGui)
+NotifContainer.Size = UDim2.new(0, 240, 0, 200)
+NotifContainer.AnchorPoint = Vector2.new(1, 1)
+NotifContainer.Position = UDim2.new(1, -12, 1, -12)
+NotifContainer.BackgroundTransparency = 1
+
+local NotifLayout = Instance.new("UIListLayout", NotifContainer)
+NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.Padding = UDim.new(0, 6)
+
+-- Helper: Get Player Avatar Image
+local function GetAvatar(playerOrName)
+    local userId = typeof(playerOrName) == "Instance" and playerOrName:IsA("Player") and playerOrName.UserId or nil
+    if not userId and type(playerOrName) == "string" then
+        local p = Players:FindFirstChild(playerOrName)
+        if p then userId = p.UserId end
+    end
+    
+    if userId then
+        local content = "rbxassetid://0"
+        pcall(function()
+            content = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+        end)
+        return content
+    end
+    return "rbxassetid://0"
+end
+
+-- Controls Connection
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    MiniBtn.Visible = true
+end)
+
+MiniBtn.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    MiniBtn.Visible = false
+end)
+
+local isCompact = false
+CompactBtn.MouseButton1Click:Connect(function()
+    isCompact = not isCompact
+    if isCompact then
+        Scroll.Visible = false
+        UserCounter.Visible = false
+        Main.Size = UDim2.new(0, 340, 0, 62)
+        InputBox.Position = UDim2.new(0, 8, 0, 28)
+        CompactBtn.Text = "Expand"
+    else
+        Scroll.Visible = true
+        UserCounter.Visible = true
+        Main.Size = UDim2.new(0, 340, 0, 235)
+        InputBox.Position = UDim2.new(0, 8, 1, -32)
+        CompactBtn.Text = "Mini"
+    end
+end)
+
+-- 🔔 Bottom Toast Notification
+local function ShowNotification(playerOrName, text)
+    if not playerOrName then return end
+
+    local currentNotifs = NotifContainer:GetChildren()
+    if #currentNotifs > 3 then
+        for _, v in ipairs(currentNotifs) do
+            if v:IsA("CanvasGroup") or v:IsA("Frame") then
+                v:Destroy()
+                break
+            end
+        end
+    end
+
+    local notif = Instance.new("CanvasGroup", NotifContainer)
+    notif.Size = UDim2.new(1, 0, 0, 44)
+    notif.GroupTransparency = 0.15
+    notif.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
+
+    local isDev = IsDev(playerOrName)
+    local stroke = Instance.new("UIStroke", notif)
+    stroke.Thickness = 1.2
+    stroke.Color = isDev and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 170, 255)
+
+    local avatar = Instance.new("ImageLabel", notif)
+    avatar.Size = UDim2.new(0, 32, 0, 32)
+    avatar.Position = UDim2.new(0, 6, 0.5, -16)
+    avatar.BackgroundTransparency = 1
+    avatar.Image = GetAvatar(playerOrName)
+    Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
+
+    local senderName = type(playerOrName) == "string" and playerOrName or playerOrName.Name
+
+    local nameLbl = Instance.new("TextLabel", notif)
+    nameLbl.Size = UDim2.new(1, -48, 0, 15)
+    nameLbl.Position = UDim2.new(0, 44, 0, 5)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.RichText = true
+    nameLbl.Font = Enum.Font.GothamBold
+    nameLbl.TextSize = 10
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    if isDev then
+        nameLbl.Text = '<font color="#FFD700">👑 [DEV]</font> <font color="#FFFFFF">' .. senderName .. '</font>'
+    else
+        nameLbl.Text = '<font color="#00AAFF">⚡ ' .. senderName .. '</font>'
+    end
+
+    local msgLbl = Instance.new("TextLabel", notif)
+    msgLbl.Size = UDim2.new(1, -48, 0, 18)
+    msgLbl.Position = UDim2.new(0, 44, 0, 20)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 11
+    msgLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Text = text
+
+    task.delay(3.5, function()
+        if notif and notif.Parent then
+            TS:Create(notif, TweenInfo.new(0.4), {GroupTransparency = 1}):Play()
+            task.wait(0.4)
+            if notif then notif:Destroy() end
+        end
+    end)
+end
+
+-- 👑 Overhead Chat Bubbles
+local function CreateHeadBubble(playerOrName, text)
+    local player = type(playerOrName) == "string" and Players:FindFirstChild(playerOrName) or playerOrName
+    if not player or not player.Character then return end
+    local head = player.Character:FindFirstChild("Head")
+    if not head then return end
+
+    local old = head:FindFirstChild("X7Bubble")
+    if old then old:Destroy() end
+
+    local isDev = IsDev(player)
+    local bb = Instance.new("BillboardGui", head)
+    bb.Name = "X7Bubble"
+    bb.Adornee = head
+    bb.Size = UDim2.new(0, 200, 0, 36)
+    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.AlwaysOnTop = true
+
+    local frame = Instance.new("Frame", bb)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+    frame.BackgroundTransparency = 0.2
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Thickness = 1.2
+    stroke.Color = isDev and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(0, 170, 255)
+
+    local lbl = Instance.new("TextLabel", frame)
+    lbl.Size = UDim2.new(1, -10, 1, -10)
+    lbl.Position = UDim2.new(0, 5, 0, 5)
+    lbl.BackgroundTransparency = 1
+    lbl.RichText = true
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextWrapped = true
+
+    if isDev then
+        lbl.Text = '<font color="#FFD700">👑 [DEV]</font> ' .. text
+    else
+        lbl.Text = text
+    end
+
+    task.delay(3.6, function()
+        if bb and bb.Parent then
+            TS:Create(frame, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+            TS:Create(lbl, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+            TS:Create(stroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
+            task.wait(0.4)
+            if bb and bb.Parent then bb:Destroy() end
+        end
+    end)
+end
+
+-- Add Chat Card Message To Scroll View
+local function AddMessageCard(sender, msg)
+    local isDev = IsDev(sender)
+    local senderName = type(sender) == "string" and sender or sender.Name
+
+    local Card = Instance.new("Frame", Scroll)
+    Card.Size = UDim2.new(1, 0, 0, 40)
+    Card.BackgroundColor3 = Color3.fromRGB(18, 24, 36)
+    Card.BackgroundTransparency = 0.3
+    Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 6)
+    
+    local CardStroke = Instance.new("UIStroke", Card)
+    CardStroke.Thickness = 1
+    CardStroke.Color = isDev and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(35, 50, 75)
+
+    -- Avatar Image
+    local AvatarImg = Instance.new("ImageLabel", Card)
+    AvatarImg.Size = UDim2.new(0, 28, 0, 28)
+    AvatarImg.Position = UDim2.new(0, 6, 0.5, -14)
+    AvatarImg.BackgroundTransparency = 1
+    AvatarImg.Image = GetAvatar(sender)
+    Instance.new("UICorner", AvatarImg).CornerRadius = UDim.new(1, 0)
+
+    -- Sender Name Label
+    local NameLbl = Instance.new("TextLabel", Card)
+    NameLbl.Size = UDim2.new(1, -42, 0, 14)
+    NameLbl.Position = UDim2.new(0, 40, 0, 4)
+    NameLbl.BackgroundTransparency = 1
+    NameLbl.RichText = true
+    NameLbl.Font = Enum.Font.GothamBold
+    NameLbl.TextSize = 10
+    NameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    if isDev then
+        NameLbl.Text = '<font color="#FFD700">👑 [DEV] ' .. senderName .. '</font>'
+    else
+        NameLbl.Text = '<font color="#00AAFF">⚡ ' .. senderName .. '</font>'
+    end
+
+    -- Message Text Label
+    local MsgLbl = Instance.new("TextLabel", Card)
+    MsgLbl.Size = UDim2.new(1, -42, 0, 18)
+    MsgLbl.Position = UDim2.new(0, 40, 0, 18)
+    MsgLbl.BackgroundTransparency = 1
+    MsgLbl.Font = Enum.Font.GothamMedium
+    MsgLbl.TextSize = 11
+    MsgLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MsgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    MsgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    MsgLbl.Text = msg
+end
+
+-- ⚡ Immediate Local Display & Server Broadcast logic
+InputBox.FocusLost:Connect(function(enter)
+    if enter and InputBox.Text:gsub("%s+", "") ~= "" then
+        local msg = InputBox.Text
+        InputBox.Text = ""
+
+        -- 1. Display Local Player's message immediately on screen!
+        AddMessageCard(LP, msg)
+        ShowNotification(LP, msg)
+        CreateHeadBubble(LP, msg)
+
+        -- 2. Broadcast to server for other script users to receive
+        pcall(function()
+            if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+                local channel = TCS.TextChannels:FindFirstChild("RBXGeneral")
+                if channel then channel:SendAsync("[X7]: " .. msg) end
+            else
+                RS.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("[X7]: " .. msg, "All")
+            end
+        end)
+    end
+end)
+
+-- Process incoming messages from other players
+local function ProcessIncomingMsg(sender, text)
+    if not sender or sender == LP then return end -- Ignore LP as LP is already shown locally
+
+    local cleanMsg = text
+    local isX7 = false
+
+    if text:sub(1, 6) == "[X7]: " then
+        cleanMsg = text:sub(7)
+        isX7 = true
+        scriptUsers[sender.Name] = true
+        UpdateUserCounter()
+    elseif text:find("%[X7%]") then
+        cleanMsg = text:gsub("%[X7%]:%s*", ""):gsub("%[X7%]", "")
+        isX7 = true
+        scriptUsers[sender.Name] = true
+        UpdateUserCounter()
+    end
+
+    if isX7 or scriptUsers[sender.Name] then
+        AddMessageCard(sender, cleanMsg)
+        ShowNotification(sender, cleanMsg)
+        CreateHeadBubble(sender, cleanMsg)
+    end
+end
+
+-- Connect Legacy Chatted Event
+local function ConnectPlayer(p)
+    p.Chatted:Connect(function(msg)
+        ProcessIncomingMsg(p, msg)
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do ConnectPlayer(p) end
+Players.PlayerAdded:Connect(function(p)
+    ConnectPlayer(p)
+    UpdateUserCounter()
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    scriptUsers[p.Name] = nil
+    UpdateUserCounter()
+end)
+
+-- Connect Modern TextChatService Event
+pcall(function()
+    if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        TCS.MessageReceived:Connect(function(textChatMessage)
+            if textChatMessage.TextSource then
+                local sender = Players:GetPlayerByUserId(textChatMessage.TextSource.UserId)
+                if sender then
+                    ProcessIncomingMsg(sender, textChatMessage.Text)
+                end
+            end
+        end)
+    end
+end)
+
+ShowNotification(LP, "تم تشغيل X7Chat المطور بنجاح!")
