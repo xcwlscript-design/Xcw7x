@@ -1,0 +1,323 @@
+local Players, RunService, UserInputService, LocalPlayer = game:GetService("Players"), game:GetService("RunService"), game:GetService("UserInputService"), game:GetService("Players").LocalPlayer
+local function getCamera() return workspace.CurrentCamera end
+
+local FOV_RADIUS, PREDICTION_FACTOR, AimbotEnabled, AimTargetPart, EspEnabled, TEAM_CHECK, WALL_CHECK = 150, 0.038, true, "Head", true, true, true
+local CrosshairEnabled, SmallHeadEspEnabled = true, true
+local EspCache, SmallEspCache = {}, {}
+
+local function getIceRgb()
+    return Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(0, 170, 255), (math.sin(tick() * 1.5) + 1) / 2)
+end
+
+local function getHealthColor(health, maxHealth)
+    return Color3.fromRGB(255, 50, 50):Lerp(Color3.fromRGB(50, 255, 130), math.clamp(health / (maxHealth > 0 and maxHealth or 100), 0, 1))
+end
+
+local function getTargetPart(character)
+    if not character then return nil end
+    return AimTargetPart == "Head" and character:FindFirstChild("Head") or (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
+end
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness, FOVCircle.NumSides, FOVCircle.Radius, FOVCircle.Filled, FOVCircle.Visible, FOVCircle.Color = 1.5, 60, FOV_RADIUS, false, AimbotEnabled, getIceRgb()
+
+local CrosshairDot = Drawing.new("Circle")
+CrosshairDot.Radius, CrosshairDot.Filled, CrosshairDot.Thickness, CrosshairDot.Visible = 2.5, true, 1, CrosshairEnabled
+
+local function isVisible(targetPart)
+    if not targetPart then return false end
+    local cam = getCamera()
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local ignoreList = {LocalPlayer.Character}
+    if targetPart.Parent then table.insert(ignoreList, targetPart.Parent) end
+    raycastParams.FilterDescendantsInstances = ignoreList
+
+    local origin = cam.CFrame.Position
+    local direction = targetPart.Position - origin
+    local rayResult = workspace:Raycast(origin, direction, raycastParams)
+    
+    return rayResult == nil
+end
+
+local function getClosestPlayer()
+    local cam = getCamera()
+    local closestPlayer, shortestDistance = nil, FOV_RADIUS
+    local centerScreen = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChildOfClass("Humanoid") and player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+            if not (TEAM_CHECK and LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team) then
+                local targetPart = getTargetPart(player.Character)
+                if targetPart then
+                    local pos, onScreen = cam:WorldToViewportPoint(targetPart.Position)
+                    if onScreen and pos.Z > 0 then
+                        local distToCenter = (Vector2.new(pos.X, pos.Y) - centerScreen).Magnitude
+                        if distToCenter <= FOV_RADIUS and distToCenter < shortestDistance then
+                            if not WALL_CHECK or isVisible(targetPart) then
+                                shortestDistance, closestPlayer = distToCenter, player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.Name, ScreenGui.ResetOnSpawn = "Xcw7xTransparentGui", false
+
+-- زر فتح القائمة الدائري (X7) مع تأثير الرادار
+local RadarPing = Instance.new("Frame", ScreenGui)
+RadarPing.Name, RadarPing.AnchorPoint = "RadarPing", Vector2.new(0.5, 0.5)
+RadarPing.Size, RadarPing.Position = UDim2.new(0, 42, 0, 42), UDim2.new(0, 33, 0.4, 21)
+RadarPing.BackgroundColor3, RadarPing.BackgroundTransparency = Color3.fromRGB(0, 170, 255), 0.6
+RadarPing.Visible = false
+Instance.new("UICorner", RadarPing).CornerRadius = UDim.new(1, 0)
+
+local OpenButton = Instance.new("TextButton", ScreenGui)
+OpenButton.Name, OpenButton.Size, OpenButton.Position = "OpenButton", UDim2.new(0, 42, 0, 42), UDim2.new(0, 12, 0.4, 0)
+OpenButton.BackgroundColor3, OpenButton.BackgroundTransparency, OpenButton.Text, OpenButton.TextColor3 = Color3.fromRGB(10, 15, 25), 0.2, "X7", Color3.fromRGB(255, 255, 255)
+OpenButton.Font, OpenButton.TextSize, OpenButton.Visible, OpenButton.Active, OpenButton.Draggable = Enum.Font.SourceSansBold, 16, false, true, true
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(1, 0)
+
+local OpenStroke = Instance.new("UIStroke", OpenButton)
+OpenStroke.Thickness, OpenStroke.Transparency, OpenStroke.Color = 1.5, 0.2, Color3.fromRGB(0, 170, 255)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name, MainFrame.Size, MainFrame.Position = "MainFrame", UDim2.new(0, 200, 0, 196), UDim2.new(0.5, -100, 0.25, 0)
+MainFrame.BackgroundColor3, MainFrame.BackgroundTransparency, MainFrame.BorderSizePixel, MainFrame.Active, MainFrame.Draggable = Color3.fromRGB(10, 14, 22), 0.35, 0, true, true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness, MainStroke.Transparency, MainStroke.Color = 1.2, 0.3, Color3.fromRGB(0, 170, 255)
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size, Title.Position, Title.BackgroundTransparency, Title.Text = UDim2.new(0, 80, 0, 28), UDim2.new(0, 8, 0, 2), 1, "Xcw7x Hub"
+Title.TextColor3, Title.TextSize, Title.Font, Title.TextXAlignment = Color3.fromRGB(255, 255, 255), 13, Enum.Font.SourceSansBold, Enum.TextXAlignment.Left
+
+local TargetSquareBtn = Instance.new("TextButton", MainFrame)
+TargetSquareBtn.Name, TargetSquareBtn.Size, TargetSquareBtn.Position = "TargetSquareBtn", UDim2.new(0, 32, 0, 22), UDim2.new(0, 130, 0, 5)
+TargetSquareBtn.BackgroundColor3, TargetSquareBtn.BackgroundTransparency, TargetSquareBtn.Text = Color3.fromRGB(20, 35, 55), 0.3, "🎯 رأس"
+TargetSquareBtn.TextColor3, TargetSquareBtn.Font, TargetSquareBtn.TextSize = Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold, 9
+Instance.new("UICorner", TargetSquareBtn).CornerRadius = UDim.new(0, 4)
+
+local lastClickTime = 0
+TargetSquareBtn.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastClickTime <= 0.35 then
+        AimTargetPart = (AimTargetPart == "Head") and "Torso" or "Head"
+        TargetSquareBtn.Text = (AimTargetPart == "Head") and "🎯 رأس" or "🎯 جذع"
+        TargetSquareBtn.BackgroundColor3 = (AimTargetPart == "Head") and Color3.fromRGB(20, 35, 55) or Color3.fromRGB(0, 120, 200)
+    end
+    lastClickTime = currentTime
+end)
+
+local CloseButton = Instance.new("TextButton", MainFrame)
+CloseButton.Size, CloseButton.Position, CloseButton.BackgroundColor3, CloseButton.BackgroundTransparency = UDim2.new(0, 20, 0, 20), UDim2.new(1, -24, 0, 5), Color3.fromRGB(230, 45, 45), 0.2
+CloseButton.Text, CloseButton.TextColor3, CloseButton.Font, CloseButton.TextSize = "X", Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold, 13
+Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(1, 0)
+
+local function createToggle(name, text, defaultState, posY, callback)
+    local btn = Instance.new("TextButton", MainFrame)
+    btn.Name, btn.Size, btn.Position = name, UDim2.new(0.9, 0, 0, 20), UDim2.new(0.05, 0, 0, posY)
+    btn.BackgroundColor3, btn.BackgroundTransparency = defaultState and Color3.fromRGB(25, 40, 65) or Color3.fromRGB(15, 20, 30), 0.4
+    btn.Text, btn.TextColor3, btn.Font, btn.TextSize = text .. ": " .. (defaultState and "ON" or "OFF"), Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold, 11
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+    local state = defaultState
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(25, 40, 65) or Color3.fromRGB(15, 20, 30)
+        callback(state)
+    end)
+    return btn
+end
+
+createToggle("AimToggle", "Aimbot Lock", AimbotEnabled, 28, function(val) AimbotEnabled, FOVCircle.Visible = val, val end)
+createToggle("CrosshairToggle", "Crosshair", CrosshairEnabled, 50, function(val) CrosshairEnabled, CrosshairDot.Visible = val, val end)
+createToggle("SmallHeadEspToggle", "Head ESP (أبيض)", SmallHeadEspEnabled, 72, function(val)
+    SmallHeadEspEnabled = val
+    if not val then
+        for _, sq in pairs(SmallEspCache) do sq.Visible = false end
+    end
+end)
+
+local FovLabel = Instance.new("TextLabel", MainFrame)
+FovLabel.Size, FovLabel.Position, FovLabel.BackgroundTransparency, FovLabel.Text = UDim2.new(1, 0, 0, 14), UDim2.new(0, 0, 0, 94), 1, "FOV: " .. tostring(FOV_RADIUS)
+FovLabel.TextColor3, FovLabel.Font, FovLabel.TextSize = Color3.fromRGB(220, 240, 255), Enum.Font.SourceSansBold, 10
+
+local FovSliderFrame = Instance.new("Frame", MainFrame)
+FovSliderFrame.Size, FovSliderFrame.Position, FovSliderFrame.BackgroundColor3, FovSliderFrame.BackgroundTransparency, FovSliderFrame.BorderSizePixel = UDim2.new(0.85, 0, 0, 4), UDim2.new(0.075, 0, 0, 109), Color3.fromRGB(40, 55, 75), 0.3, 0
+Instance.new("UICorner", FovSliderFrame).CornerRadius = UDim.new(1, 0)
+
+local FovSliderBtn = Instance.new("TextButton", FovSliderFrame)
+FovSliderBtn.Size, FovSliderBtn.Position, FovSliderBtn.BackgroundColor3, FovSliderBtn.Text = UDim2.new(0, 10, 0, 10), UDim2.new((FOV_RADIUS - 20) / (500 - 20), -5, 0.5, -5), Color3.fromRGB(255, 255, 255), ""
+Instance.new("UICorner", FovSliderBtn).CornerRadius = UDim.new(1, 0)
+
+local draggingFov = false
+local function updateFovSlider(input)
+    local posX = math.clamp(input.Position.X - FovSliderFrame.AbsolutePosition.X, 0, FovSliderFrame.AbsoluteSize.X)
+    local percentage = posX / FovSliderFrame.AbsoluteSize.X
+    FOV_RADIUS = math.floor(20 + (500 - 20) * percentage)
+    FovSliderBtn.Position, FovLabel.Text, FOVCircle.Radius = UDim2.new(percentage, -5, 0.5, -5), "FOV: " .. tostring(FOV_RADIUS), FOV_RADIUS
+end
+
+FovSliderBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingFov = true end
+end)
+
+createToggle("TeamToggle", "Team Check", TEAM_CHECK, 117, function(val) TEAM_CHECK = val end)
+createToggle("WallToggle", "Wall Check", WALL_CHECK, 139, function(val) WALL_CHECK = val end)
+createToggle("EspToggle", "Full ESP", EspEnabled, 161, function(val)
+    EspEnabled = val
+    if not val then
+        for _, d in pairs(EspCache) do
+            d.Box.Visible, d.BoxOutline.Visible, d.Tracer.Visible, d.NameText.Visible, d.HpText.Visible, d.DistText.Visible = false, false, false, false, false, false
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingFov = false end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and draggingFov then updateFovSlider(input) end
+end)
+
+CloseButton.MouseButton1Click:Connect(function() MainFrame.Visible, OpenButton.Visible = false, true end)
+OpenButton.MouseButton1Click:Connect(function() MainFrame.Visible, OpenButton.Visible = true, false end)
+
+local function createEspDrawings(player)
+    if EspCache[player] then return EspCache[player] end
+    local bo, b, t = Drawing.new("Square"), Drawing.new("Square"), Drawing.new("Line")
+    bo.Thickness, bo.Color, bo.Filled, bo.Transparency = 3, Color3.fromRGB(0, 0, 0), false, 0.5
+    b.Thickness, b.Filled, b.Transparency = 1.5, false, 0.65
+    t.Thickness, t.Transparency = 1.5, 0.65
+
+    local function makeTxt(sz, clr)
+        local txt = Drawing.new("Text")
+        txt.Size, txt.Center, txt.Outline, txt.OutlineColor = sz, true, true, Color3.fromRGB(0, 0, 0)
+        if clr then txt.Color = clr end
+        return txt
+    end
+
+    local drawings = {BoxOutline = bo, Box = b, Tracer = t, NameText = makeTxt(12), HpText = makeTxt(11), DistText = makeTxt(11, Color3.fromRGB(150, 220, 255))}
+    EspCache[player] = drawings
+    return drawings
+end
+
+local function getSmallEsp(player)
+    if SmallEspCache[player] then return SmallEspCache[player] end
+    local sq = Drawing.new("Square")
+    sq.Thickness, sq.Filled, sq.Color, sq.Transparency = 1.5, true, Color3.fromRGB(255, 255, 255), 0.95
+    SmallEspCache[player] = sq
+    return sq
+end
+
+RunService.RenderStepped:Connect(function()
+    local cam = getCamera()
+    local iceRgb = getIceRgb()
+    
+    local centerScreen = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    FOVCircle.Position, FOVCircle.Visible, FOVCircle.Color = centerScreen, AimbotEnabled, iceRgb
+    
+    if CrosshairEnabled then
+        CrosshairDot.Position, CrosshairDot.Color, CrosshairDot.Visible = centerScreen, iceRgb, true
+    else
+        CrosshairDot.Visible = false
+    end
+
+    MainStroke.Color, Title.TextColor3, OpenStroke.Color = iceRgb, iceRgb, iceRgb
+
+    -- أنيميشن شعاع الرادار خلف زر الفتح الدائري
+    if OpenButton.Visible then
+        RadarPing.Visible = true
+        RadarPing.Position = UDim2.new(OpenButton.Position.X.Scale, OpenButton.Position.X.Offset + 21, OpenButton.Position.Y.Scale, OpenButton.Position.Y.Offset + 21)
+        local pulse = (tick() % 1.2) / 1.2
+        RadarPing.Size = UDim2.new(0, 42 + (pulse * 25), 0, 42 + (pulse * 25))
+        RadarPing.BackgroundTransparency = 0.3 + (pulse * 0.7)
+    else
+        RadarPing.Visible = false
+    end
+
+    local targetPlayer = AimbotEnabled and getClosestPlayer() or nil
+
+    if targetPlayer and targetPlayer.Character then
+        local part = getTargetPart(targetPlayer.Character)
+        if part and (not WALL_CHECK or isVisible(part)) then
+            local targetPos = part.Position + ((part.Velocity or Vector3.zero) * PREDICTION_FACTOR)
+            local targetCFrame = CFrame.new(cam.CFrame.Position, targetPos)
+            cam.CFrame = cam.CFrame:Lerp(targetCFrame, 0.45)
+        end
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        local isTeam = TEAM_CHECK and LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team
+        
+        -- Head ESP (مربع أبيض ناصع فوق الرأس)
+        local smallSq = getSmallEsp(player)
+        if SmallHeadEspEnabled and player ~= LocalPlayer and not isTeam and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if head and hum and hum.Health > 0 then
+                local headPos, onScreen = cam:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local dist = (head.Position - cam.CFrame.Position).Magnitude
+                    local size = math.clamp(140 / dist, 6, 14)
+                    smallSq.Size = Vector2.new(size, size)
+                    smallSq.Position = Vector2.new(headPos.X - size / 2, headPos.Y - size / 2)
+                    smallSq.Visible = true
+                else smallSq.Visible = false end
+            else smallSq.Visible = false end
+        else smallSq.Visible = false end
+
+        -- Full ESP
+        local drawings = createEspDrawings(player)
+        if EspEnabled and player ~= LocalPlayer and not isTeam and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            local hum, hrp = player.Character:FindFirstChildOfClass("Humanoid"), player.Character:FindFirstChild("HumanoidRootPart")
+            if hum and hum.Health > 0 and hrp then
+                local hrpPos, onScreen = cam:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local head = player.Character:FindFirstChild("Head")
+                    local headPos = head and cam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) or cam:WorldToViewportPoint(hrp.Position + Vector3.new(0, 3, 0))
+                    local legPos = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+                    local height = math.abs(headPos.Y - legPos.Y)
+                    local width = height / 1.8
+
+                    drawings.BoxOutline.Size, drawings.BoxOutline.Position, drawings.BoxOutline.Visible = Vector2.new(width, height), Vector2.new(hrpPos.X - width / 2, hrpPos.Y - height / 2), true
+                    drawings.Box.Size, drawings.Box.Position, drawings.Box.Color, drawings.Box.Visible = Vector2.new(width, height), Vector2.new(hrpPos.X - width / 2, hrpPos.Y - height / 2), iceRgb, true
+                    drawings.Tracer.From, drawings.Tracer.To, drawings.Tracer.Color, drawings.Tracer.Visible = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y), Vector2.new(hrpPos.X, hrpPos.Y + height / 2), iceRgb, true
+                    
+                    drawings.NameText.Text, drawings.NameText.Position, drawings.NameText.Color, drawings.NameText.Visible = player.Name, Vector2.new(hrpPos.X, hrpPos.Y - height / 2 - 16), Color3.fromRGB(255, 255, 255), true
+                    drawings.HpText.Text, drawings.HpText.Position, drawings.HpText.Color, drawings.HpText.Visible = math.floor(hum.Health) .. " HP", Vector2.new(hrpPos.X, hrpPos.Y + height / 2 + 2), getHealthColor(hum.Health, hum.MaxHealth), true
+                    drawings.DistText.Text, drawings.DistText.Position, drawings.DistText.Visible = math.floor((hrp.Position - cam.CFrame.Position).Magnitude) .. "m", Vector2.new(hrpPos.X, hrpPos.Y + height / 2 + 15), true
+                else
+                    drawings.Box.Visible, drawings.BoxOutline.Visible, drawings.Tracer.Visible, drawings.NameText.Visible, drawings.HpText.Visible, drawings.DistText.Visible = false, false, false, false, false, false
+                end
+            else
+                drawings.Box.Visible, drawings.BoxOutline.Visible, drawings.Tracer.Visible, drawings.NameText.Visible, drawings.HpText.Visible, drawings.DistText.Visible = false, false, false, false, false, false
+            end
+        else
+            drawings.Box.Visible, drawings.BoxOutline.Visible, drawings.Tracer.Visible, drawings.NameText.Visible, drawings.HpText.Visible, drawings.DistText.Visible = false, false, false, false, false, false
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if EspCache[player] then
+        for _, drawing in pairs(EspCache[player]) do drawing:Remove() end
+        EspCache[player] = nil
+    end
+    if SmallEspCache[player] then
+        SmallEspCache[player]:Remove()
+        SmallEspCache[player] = nil
+    end
+end)
+                                     
